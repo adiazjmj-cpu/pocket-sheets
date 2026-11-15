@@ -1,0 +1,114 @@
+# Build Pocket Sheets for macOS and Windows.
+#
+# This workflow assumes the GitHub repository's root IS this desktop project
+# (the contents of desktop/ pushed as the repo root). See README.md.
+# It builds on GitHub's own macOS and Windows runners and uploads the
+# installers as run artifacts — nothing is built on the developer's machine.
+#
+# Outputs:
+#   macOS Apple Silicon (arm64):  Pocket Sheets_<version>_aarch64.dmg
+#   macOS Intel (x86_64):        Pocket Sheets_<version>_x64.dmg
+#   Windows (x86_64):            Pocket Sheets_<version>_x64.msi and ..._x64-setup.exe (NSIS)
+#
+# iOS is NOT built here — it needs a paid Apple Developer Program membership
+# ($99/year), which the project does not have yet. See README.md.
+
+name: Build desktop apps
+
+# The release step needs write access to create a GitHub Release.
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: --target x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable) with the build target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          args: ${{ matrix.args }}
+
+      # Size budget (standing rule — see SIZE-BUDGET.md): each installer must
+      # stay under 20 MB. This app is a single ~116 KB HTML file in a Tauri
+      # shell, so 20 MB is a generous ceiling, not a tight one. If this step
+      # fails, the build must not ship — find what ballooned it and shrink
+      # it, don't raise it.
+      - name: Check installer size (20 MB budget)
+        shell: bash
+        run: |
+          BUNDLE="src-tauri/target/${{ matrix.target }}/release/bundle"
+          echo "Installer sizes:"
+          find "$BUNDLE" -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" \) -exec ls -lh {} \;
+          OVER=$(find "$BUNDLE" -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" \) -size +20M -print)
+          if [ -n "$OVER" ]; then
+            echo "ERROR: installer over the 20 MB size budget:"
+            echo "$OVER"
+            exit 1
+          fi
+          echo "All installers within the 20 MB budget."
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocket-sheets-${{ matrix.target }}
+          path: src-tauri/target/${{ matrix.target }}/release/bundle/
+          if-no-files-found: error
+
+      # Publish this platform's installers to the v1.1.0 GitHub Release.
+      # Each matrix job uploads only its own platform's files to the same
+      # release tag, so the Release ends up with all four installers:
+      #   Pocket Sheets_1.1.0_aarch64.dmg (Mac Apple Silicon)
+      #   Pocket Sheets_1.1.0_x64.dmg     (Mac Intel)
+      #   Pocket Sheets_1.1.0_x64.msi     (Windows)
+      #   Pocket Sheets_1.1.0_x64-setup.exe (Windows, NSIS)
+      # Those release assets are the direct download links the Suite page
+      # points at, so nobody has to navigate GitHub to get the app.
+      # The tag name tracks the Cargo version (1.1.0); bump it together.
+      - name: Publish to the v1.1.0 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.0
+          name: Pocket Sheets v1.1.0
+          body: |
+            Pocket Sheets v1.1.0 — a local-first spreadsheet for Mac and Windows.
+            Download the installer for your computer below. No account, no cloud, no subscription.
+          draft: false
+          prerelease: false
+          files: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
