@@ -1,0 +1,37 @@
+[package]
+name = "pocket-sheets"
+version = "1.1.0"
+description = "Pocket Sheets — a spreadsheet app that lives on your device."
+edition = "2021"
+rust-version = "1.77"
+
+# The version tracks the Pocket Sheets app version (v1.1 here). When the live
+# pocket-sheets.html is updated, bump this to match and copy the new file into
+# dist/index.html (see README.md).
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+# Native Open/Save dialogs. Needed because the webview's <input type="file">
+# picker does not deliver the selected file in Tauri on macOS, and the
+# browser anchor download (<a download>) is silently dropped by WebView2 on
+# Windows — see README.md "Feature parity" and the commands in src/main.rs.
+tauri-plugin-dialog = "2"
+# Base64 for the read_bytes_file / save_bytes_file commands (binary .xlsx
+# import/export). Tiny, no TLS.
+base64 = "0.22"
+
+# Size budget (standing rule — see SIZE-BUDGET.md): each installer must stay
+# under 20 MB. For context, Logseq is ~135 MB and OneNote for Mac is ~626 MB.
+# The release profile below is part of how the budget is held: optimize for
+# size, strip symbols, link-time optimization, single codegen unit.
+[profile.release]
+opt-level = "s"
+strip = true
+lto = true
+codegen-units = 1
+panic = "abort"
