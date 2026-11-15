@@ -1,0 +1,2579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pocket Sheets</title>
+<style>
+/* Pocket Sheets v1.1 — Pastel Sky palette: #A0C4FF #BDB2FF #FFC6FF #B9FBC0 #FDFFB6
+   Design rules: function first, no pills, flat solid colors, radius scale
+   0 structural / 4 controls / 6 labels / 8 cards-overlays / 50% circles only
+   where circular. No external dependencies. v1.1 adds Tauri desktop-shell
+   wiring (native Open/Save dialogs) — the browser/PWA path is unchanged. */
+:root{
+  --accent:#A0C4FF; --accent-dark:#5B7FD6; --accent-soft:#EAF1FF;
+  --accent-ink:#1F2A44; --sel:#DCE8FF;
+  --ink:#1F2A44; --muted:#6B7280; --line:#D8DDE6; --grid-line:#E3E7EE;
+  --chrome:#F4F5F7; --header-bg:#F8F9FB; --white:#FFFFFF;
+  --lav:#BDB2FF; --pink:#FFC6FF; --mint:#B9FBC0; --lemon:#FDFFB6;
+  --danger:#C0392B; --ok:#2E7D32;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--white);font-size:14px}
+button{font:inherit;color:inherit;background:#fff;border:1px solid var(--line);border-radius:4px;padding:5px 10px;cursor:pointer}
+button:hover{background:var(--chrome)}
+button:disabled{opacity:.45;cursor:default}
+button.active{background:var(--accent-soft);border-color:var(--accent-dark)}
+input,select,textarea{font:inherit;color:inherit}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+/* ---- top bar ---- */
+#topbar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--white);border-bottom:1px solid var(--line);flex:0 0 auto}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;white-space:nowrap}
+.brand svg{display:block}
+#wbName{border:1px solid transparent;border-radius:4px;padding:4px 8px;font-size:15px;font-weight:600;min-width:120px;max-width:320px;flex:1 1 auto}
+#wbName:hover{border-color:var(--line)}
+#wbName:focus{outline:2px solid var(--accent-dark);border-color:var(--accent-dark);background:#fff}
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+#saveState{font-size:12px;color:var(--muted);white-space:nowrap}
+#saveState.limited{color:var(--danger);font-weight:600}
+.top-actions button{border-color:transparent;background:transparent}
+.top-actions button:hover{background:var(--chrome)}
+/* ---- toolbar ---- */
+#toolbar{display:flex;align-items:center;gap:4px;padding:6px 10px;background:var(--header-bg);border-bottom:1px solid var(--line);flex-wrap:wrap;flex:0 0 auto}
+#toolbar .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+#toolbar button{padding:4px 8px;font-size:13px}
+#toolbar button b{font-weight:700}
+#toolbar select{border:1px solid var(--line);border-radius:4px;padding:4px 6px;background:#fff;font-size:13px}
+.swatch-btn{width:26px;height:26px;padding:0;border-radius:4px;position:relative;overflow:hidden}
+.swatch-btn input[type=color]{position:absolute;inset:-6px;width:40px;height:40px;border:0;padding:0;cursor:pointer}
+.tb-label{font-size:11px;color:var(--muted);margin-left:2px}
+/* ---- formula bar ---- */
+#formulabar{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);background:#fff;flex:0 0 auto}
+#nameBox{min-width:64px;text-align:center;border:1px solid var(--line);border-radius:4px;padding:4px 6px;font-size:13px;background:var(--header-bg);font-weight:600}
+.fx{color:var(--muted);font-style:italic;font-size:13px}
+#formulaInput{flex:1;border:1px solid var(--line);border-radius:4px;padding:5px 8px;font-size:13px}
+#formulaInput:focus{outline:2px solid var(--accent-dark);border-color:var(--accent-dark)}
+/* ---- view switch ---- */
+#viewbar{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--header-bg);border-bottom:1px solid var(--line);font-size:13px;flex:0 0 auto}
+#viewbar .seg{display:flex;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+#viewbar .seg button{border:0;border-radius:0;padding:4px 12px}
+#viewbar .seg button.active{background:var(--accent);color:var(--accent-ink);font-weight:600}
+#viewHint{color:var(--muted);font-size:12px;margin-left:auto}
+/* ---- grid ---- */
+#gridWrap{flex:1 1 auto;overflow:auto;position:relative;background:#fff}
+#grid{border-collapse:separate;border-spacing:0;table-layout:fixed;user-select:none}
+#grid th,#grid td{border-right:1px solid var(--grid-line);border-bottom:1px solid var(--grid-line);padding:0}
+#grid th{background:var(--header-bg);font-weight:600;font-size:12px;color:#4A5568;text-align:center;position:sticky;z-index:3}
+#grid thead th{top:0}
+#grid thead th.corner{left:0;z-index:5}
+#grid tbody th{left:0;position:sticky;z-index:2}
+#grid td{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:13px;padding:2px 6px;min-width:0}
+#grid td .celltxt{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#grid td.sel{background:var(--sel)}
+#grid td.active{outline:2px solid var(--accent-dark);outline-offset:-2px;background:#fff}
+#grid td.err{color:var(--danger)}
+#grid td.editing{padding:0}
+#cellEditor{position:absolute;display:none;z-index:10;border:2px solid var(--accent-dark);border-radius:0;padding:2px 6px;font-size:13px;background:#fff;box-shadow:0 2px 8px rgba(31,42,68,.2)}
+#cellEditor:focus{outline:none}
+/* ---- cards view ---- */
+#cardsView{flex:1 1 auto;overflow:auto;padding:16px;display:none}
+#cardsView.on{display:block}
+#cardsView.off{display:none}
+.card{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:0 0 10px 0;background:#fff;max-width:640px}
+.card h3{margin:0 0 8px 0;font-size:15px}
+.card dl{margin:0;display:grid;grid-template-columns:130px 1fr;row-gap:4px}
+.card dt{color:var(--muted);font-size:12px}
+.card dd{margin:0;font-size:13px;overflow-wrap:anywhere}
+/* ---- footer: tabs + status ---- */
+#footer{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);background:var(--header-bg);padding:4px 8px;flex:0 0 auto}
+#sheetTabs{display:flex;gap:4px;overflow-x:auto;flex:1 1 auto;min-width:0}
+.sheet-tab{border:1px solid transparent;border-radius:6px 6px 0 0;padding:5px 12px;font-size:13px;background:transparent;white-space:nowrap;border-bottom:2px solid transparent}
+.sheet-tab:hover{background:#E8EBF0}
+.sheet-tab.active{background:#fff;border-color:var(--line);border-bottom:2px solid var(--accent-dark);font-weight:600}
+#addSheetBtn{font-weight:700;font-size:15px;padding:3px 10px}
+#statusbar{font-size:12px;color:var(--muted);white-space:nowrap;margin-left:auto}
+/* ---- modal ---- */
+#modalOverlay{position:fixed;inset:0;background:rgba(31,42,68,.35);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px}
+#modalOverlay.on{display:flex}
+#modal{background:#fff;border-radius:8px;max-width:640px;width:100%;max-height:82vh;overflow:auto;box-shadow:0 8px 32px rgba(31,42,68,.3);padding:18px 20px}
+#modal h2{margin:0 0 10px 0;font-size:18px}
+#modal h3{margin:14px 0 6px 0;font-size:14px}
+#modal p{margin:6px 0;line-height:1.5}
+#modal .row{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+#modal .row label{font-size:13px;font-weight:600}
+#modal input[type=text],#modal select,#modal textarea{border:1px solid var(--line);border-radius:4px;padding:6px 8px;width:100%}
+#modal textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.modal-actions .primary{background:var(--accent);border-color:var(--accent-dark);font-weight:600}
+.help-table{border-collapse:collapse;width:100%;font-size:13px}
+.help-table td{border-bottom:1px solid var(--grid-line);padding:5px 4px;vertical-align:top}
+.help-table td:first-child{font-weight:600;white-space:nowrap;padding-right:12px}
+kbd{background:var(--chrome);border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:12px;font-family:inherit}
+/* ---- toast ---- */
+#toast{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;display:none;z-index:60;max-width:90vw}
+#toast.on{display:block}
+/* ---- dropdown menu ---- */
+#fileMenu{position:absolute;top:46px;right:12px;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(31,42,68,.18);z-index:40;display:none;min-width:230px;padding:4px}
+#fileMenu.on{display:block}
+#fileMenu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 10px;border-radius:4px}
+#fileMenu button:hover{background:var(--chrome)}
+#fileMenu .msep{height:1px;background:var(--line);margin:4px 6px}
+#fileMenu .mhead{font-size:11px;color:var(--muted);padding:6px 10px 2px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+@media (max-width:760px){
+  #toolbar button{padding:4px 6px;font-size:12px}
+  #wbName{max-width:160px}
+  #viewHint{display:none}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="4" fill="#A0C4FF"/><path d="M7 4v18M13 4v18M19 4v18M4 8h18M4 14h18M4 20h18" stroke="#1F2A44" stroke-width="1.6"/><rect x="4" y="4" width="6" height="4" fill="#FDFFB6"/><rect x="13" y="8" width="6" height="6" fill="#B9FBC0"/></svg>
+      Pocket Sheets
+    </div>
+    <input id="wbName" type="text" value="Untitled workbook" aria-label="Workbook name" spellcheck="false">
+    <div class="top-actions">
+      <span id="saveState" title="Auto-save status">Saved</span>
+      <button id="helpBtn" type="button" title="Help and shortcuts">Help</button>
+      <button id="fileBtn" type="button" title="File: import, export, storage">File</button>
+    </div>
+  </header>
+
+  <div id="toolbar" role="toolbar" aria-label="Formatting and editing">
+    <button id="undoBtn" type="button" title="Undo (Ctrl+Z)">Undo</button>
+    <button id="redoBtn" type="button" title="Redo (Ctrl+Shift+Z)">Redo</button>
+    <span class="sep"></span>
+    <button id="boldBtn" type="button" title="Bold (Ctrl+B)"><b>B</b></button>
+    <button id="italicBtn" type="button" title="Italic (Ctrl+I)"><i>I</i></button>
+    <button class="swatch-btn" type="button" title="Fill color"><input id="fillColor" type="color" value="#FFC6FF" aria-label="Fill color"></button>
+    <button class="swatch-btn" type="button" title="Text color"><input id="textColor" type="color" value="#1F2A44" aria-label="Text color"></button>
+    <select id="numFmt" title="Number format" aria-label="Number format">
+      <option value="">General</option>
+      <option value="number">Number (1,234.56)</option>
+      <option value="currency">$ Currency</option>
+      <option value="percent">Percent</option>
+      <option value="date">Date</option>
+    </select>
+    <select id="borderSel" title="Borders" aria-label="Borders">
+      <option value="">Borders: none</option>
+      <option value="all">All borders</option>
+      <option value="outer">Outer border</option>
+    </select>
+    <button id="mergeBtn" type="button" title="Merge selected cells">Merge</button>
+    <button id="unmergeBtn" type="button" title="Unmerge selected cells">Unmerge</button>
+    <span class="sep"></span>
+    <button id="insRowBtn" type="button" title="Insert row above selection">+ Row</button>
+    <button id="delRowBtn" type="button" title="Delete selected rows">− Row</button>
+    <button id="insColBtn" type="button" title="Insert column left of selection">+ Col</button>
+    <button id="delColBtn" type="button" title="Delete selected columns">− Col</button>
+    <span class="sep"></span>
+    <button id="sortAscBtn" type="button" title="Sort selected rows A to Z by first selected column">Sort A–Z</button>
+    <button id="sortDescBtn" type="button" title="Sort selected rows Z to A by first selected column">Sort Z–A</button>
+    <button id="filterBtn" type="button" title="Filter a column by value">Filter</button>
+    <button id="clearFilterBtn" type="button" title="Clear all filters on this sheet">Clear filter</button>
+    <span class="sep"></span>
+    <button id="findBtn" type="button" title="Find (Ctrl+F)">Find</button>
+    <button id="clearBtn" type="button" title="Clear selected cells">Clear</button>
+  </div>
+
+  <div id="formulabar">
+    <div id="nameBox" title="Active cell">A1</div>
+    <div class="fx">fx</div>
+    <input id="formulaInput" type="text" aria-label="Formula bar" spellcheck="false" placeholder="Type a value or a formula starting with =">
+  </div>
+
+  <div id="viewbar">
+    <div class="seg" role="tablist" aria-label="View">
+      <button id="gridViewBtn" type="button" class="active" role="tab">Grid</button>
+      <button id="cardsViewBtn" type="button" role="tab">Cards</button>
+    </div>
+    <span id="viewHint">Cards shows one card per row, using the first row as labels.</span>
+  </div>
+
+  <div id="gridWrap">
+    <table id="grid" aria-label="Spreadsheet grid"></table>
+    <input id="cellEditor" type="text" aria-label="Cell editor" spellcheck="false">
+  </div>
+  <div id="cardsView" aria-label="Cards view"></div>
+
+  <div id="footer">
+    <div id="sheetTabs" role="tablist" aria-label="Sheets"></div>
+    <button id="addSheetBtn" type="button" title="Add a sheet">+</button>
+    <div id="statusbar"></div>
+  </div>
+</div>
+
+<div id="fileMenu" role="menu" aria-label="File menu">
+  <div class="mhead">Import</div>
+  <button type="button" data-act="import-xlsx">Import .xlsx file…</button>
+  <button type="button" data-act="import-csv-file">Import .csv file…</button>
+  <button type="button" data-act="import-csv-paste">Paste CSV / TSV…</button>
+  <button type="button" data-act="import-weave">Import .weave file…</button>
+  <div class="msep"></div>
+  <div class="mhead">Export</div>
+  <button type="button" data-act="export-xlsx">Export .xlsx (Excel, Sheets, LibreOffice)</button>
+  <button type="button" data-act="export-csv">Export .csv (this sheet)</button>
+  <button type="button" data-act="export-weave">Export .weave (Pocket format)</button>
+  <button type="button" data-act="export-backup">Export backup (.weave, whole workbook)</button>
+  <div class="msep"></div>
+  <button type="button" data-act="storage">Storage…</button>
+  <button type="button" data-act="about">About Pocket Sheets…</button>
+</div>
+
+<div id="modalOverlay"><div id="modal" role="dialog" aria-modal="true"></div></div>
+<input type="file" id="fileInput" hidden>
+<div id="toast" role="status"></div>
+
+<script>
+"use strict";
+/* =====================================================================
+   Pocket Sheets v1.1 — a standalone, local-first spreadsheet.
+   Single file, no external dependencies. Pastel Sky palette.
+   ===================================================================== */
+
+/* ---------------- utils ---------------- */
+const $ = s => document.querySelector(s);
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function uid(){ return "s"+Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4); }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("on"),2600); }
+function xmlEncode(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;"); }
+function xmlDecode(s){
+  return String(s).replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&#(\d+);/g,(m,d)=>String.fromCharCode(+d)).replace(/&#x([0-9a-fA-F]+);/g,(m,h)=>String.fromCharCode(parseInt(h,16))).replace(/&amp;/g,"&");
+}
+function xmlAttr(tag,name){
+  const m = new RegExp(name+'\\s*=\\s*"([^"]*)"').exec(tag) || new RegExp(name+"\\s*=\\s*'([^']*)'").exec(tag);
+  return m ? m[1] : null;
+}
+function utf8Bytes(str){
+  const s = String(str==null?"":str); const out=[];
+  for(let i=0;i<s.length;i++){
+    let c=s.charCodeAt(i);
+    if(c<0x80) out.push(c);
+    else if(c<0x800){ out.push(0xC0|(c>>6), 0x80|(c&0x3F)); }
+    else if(c>=0xD800 && c<0xDC00 && i+1<s.length){
+      const c2=s.charCodeAt(i+1);
+      if(c2>=0xDC00 && c2<0xE000){
+        const cp=0x10000+((c-0xD800)<<10)+(c2-0xDC00);
+        out.push(0xF0|(cp>>18), 0x80|((cp>>12)&0x3F), 0x80|((cp>>6)&0x3F), 0x80|(cp&0x3F)); i++;
+      } else out.push(0xEF,0xBF,0xBD);
+    } else if(c>=0xD800 && c<0xE000) out.push(0xEF,0xBF,0xBD);
+    else out.push(0xE0|(c>>12), 0x80|((c>>6)&0x3F), 0x80|(c&0x3F));
+  }
+  return new Uint8Array(out);
+}
+function utf8Decode(bytes){
+  if(typeof TextDecoder!=="undefined"){ try{ return new TextDecoder("utf-8").decode(bytes); }catch(e){} }
+  let s=""; for(let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]); return s;
+}
+function bytesToBase64(bytes){
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let bin=""; const CH=8192;
+  for(let i=0;i<b.length;i+=CH) bin+=String.fromCharCode.apply(null, b.subarray(i,i+CH));
+  return btoa(bin);
+}
+function base64ToBytes(b64){
+  const bin=atob(b64); const out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
+}
+
+/* ---------------- CRC-32 (IEEE) ---------------- */
+const CRC32_TABLE=(function(){
+  const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; }
+  return t;
+})();
+function crc32(bytes){
+  let c=0xFFFFFFFF;
+  for(let i=0;i<bytes.length;i++) c=CRC32_TABLE[(c^bytes[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;
+}
+
+/* ---------------- DEFLATE inflate (raw) — same engine as Pocket Notes v18/v19 ---------------- */
+function inflateRaw(input){
+  let pos=0, bitBuf=0, bitCnt=0; const out=[];
+  function need(n){ while(bitCnt<n){ if(pos>=input.length) throw new Error("inflate: unexpected end of data"); bitBuf|=input[pos++]<<bitCnt; bitCnt+=8; } }
+  function bits(n){ need(n); const v=bitBuf&((1<<n)-1); bitBuf>>>=n; bitCnt-=n; return v; }
+  function alignByte(){ bitBuf=0; bitCnt=0; }
+  function buildTable(lengths){
+    let maxLen=0; for(let i=0;i<lengths.length;i++) if(lengths[i]>maxLen) maxLen=lengths[i];
+    const count=new Array(maxLen+1).fill(0);
+    for(let i=0;i<lengths.length;i++) if(lengths[i]) count[lengths[i]]++;
+    const index=new Array(maxLen+1).fill(0);
+    for(let len=1;len<=maxLen;len++) index[len]=index[len-1]+count[len-1];
+    const symbols=new Array(lengths.length); const next=index.slice();
+    for(let sym=0;sym<lengths.length;sym++){ const len=lengths[sym]; if(len) symbols[next[len]++]=sym; }
+    return {count,index,symbols,maxLen};
+  }
+  function decode(tbl){
+    let code=0, first=0, index=0;
+    for(let len=1;len<=tbl.maxLen;len++){
+      code|=bits(1); const cnt=tbl.count[len];
+      if(code-cnt<first) return tbl.symbols[index+(code-first)];
+      index+=cnt; first=(first+cnt)<<1; code<<=1;
+    }
+    throw new Error("inflate: invalid huffman code");
+  }
+  const LEN_BASE=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  const LEN_EXTRA=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+  const DIST_BASE=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  const DIST_EXTRA=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+  const CLEN_ORDER=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+  let bfinal=0;
+  while(!bfinal){
+    bfinal=bits(1); const btype=bits(2);
+    if(btype===0){
+      alignByte();
+      if(pos+4>input.length) throw new Error("inflate: stored block truncated");
+      const len=input[pos]|(input[pos+1]<<8); pos+=4;
+      for(let i=0;i<len;i++){ if(pos>=input.length) throw new Error("inflate: stored block data truncated"); out.push(input[pos++]); }
+    } else if(btype===1||btype===2){
+      let litTable, distTable;
+      if(btype===1){
+        const litLen=new Array(288).fill(0);
+        for(let i=0;i<144;i++) litLen[i]=8;
+        for(let i=144;i<256;i++) litLen[i]=9;
+        for(let i=256;i<280;i++) litLen[i]=7;
+        for(let i=280;i<288;i++) litLen[i]=8;
+        litTable=buildTable(litLen); distTable=buildTable(new Array(30).fill(5));
+      } else {
+        const hlit=bits(5)+257, hdist=bits(5)+1, hclen=bits(4)+4;
+        const clen=new Array(19).fill(0);
+        for(let i=0;i<hclen;i++) clen[CLEN_ORDER[i]]=bits(3);
+        const clTable=buildTable(clen); const lengths=[];
+        while(lengths.length<hlit+hdist){
+          const sym=decode(clTable);
+          if(sym<16) lengths.push(sym);
+          else if(sym===16){ const prev=lengths[lengths.length-1]; const rep=3+bits(2); for(let i=0;i<rep;i++) lengths.push(prev); }
+          else if(sym===17){ const rep=3+bits(3); for(let i=0;i<rep;i++) lengths.push(0); }
+          else { const rep=11+bits(7); for(let i=0;i<rep;i++) lengths.push(0); }
+        }
+        litTable=buildTable(lengths.slice(0,hlit)); distTable=buildTable(lengths.slice(hlit,hlit+hdist));
+      }
+      while(true){
+        const sym=decode(litTable);
+        if(sym<256) out.push(sym);
+        else if(sym===256) break;
+        else{
+          const li=sym-257; const len=LEN_BASE[li]+bits(LEN_EXTRA[li]);
+          const dsym=decode(distTable); const dist=DIST_BASE[dsym]+bits(DIST_EXTRA[dsym]);
+          let from=out.length-dist;
+          if(from<0) throw new Error("inflate: distance too far back");
+          for(let i=0;i<len;i++) out.push(out[from++]);
+        }
+      }
+    } else throw new Error("inflate: invalid block type");
+  }
+  return new Uint8Array(out);
+}
+
+/* ---------------- ZIP reader / writer (stored entries, method 0) ---------------- */
+function readZip(buf){
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let eocd=-1; const minEocd=Math.max(0, bytes.length-65557);
+  for(let i=bytes.length-22;i>=minEocd;i--){ if(view.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
+  if(eocd<0) throw new Error("zip: no end-of-central-directory record");
+  const total=view.getUint16(eocd+10,true); const cdOff=view.getUint32(eocd+16,true);
+  const entries=[]; let p=cdOff;
+  for(let i=0;i<total;i++){
+    if(view.getUint32(p,true)!==0x02014b50) throw new Error("zip: bad central directory entry");
+    const method=view.getUint16(p+10,true);
+    const compSize=view.getUint32(p+20,true), uncompSize=view.getUint32(p+24,true);
+    const nameLen=view.getUint16(p+28,true), extraLen=view.getUint16(p+30,true), commentLen=view.getUint16(p+32,true);
+    const localOff=view.getUint32(p+42,true);
+    const name=utf8Decode(bytes.subarray(p+46,p+46+nameLen));
+    entries.push({name,method,compSize,uncompSize,localOff});
+    p+=46+nameLen+extraLen+commentLen;
+  }
+  return entries.map(e=>{
+    const q=e.localOff;
+    if(view.getUint32(q,true)!==0x04034b50) throw new Error("zip: bad local header for "+e.name);
+    const lfNameLen=view.getUint16(q+26,true), lfExtraLen=view.getUint16(q+28,true);
+    const dataStart=q+30+lfNameLen+lfExtraLen;
+    const comp=bytes.subarray(dataStart,dataStart+e.compSize);
+    let data;
+    if(e.method===0) data=comp;
+    else if(e.method===8) data=inflateRaw(comp);
+    else throw new Error("zip: unsupported compression method "+e.method+" for "+e.name);
+    if(data.length!==e.uncompSize) throw new Error("zip: size mismatch for "+e.name);
+    return {name:e.name, data, size:e.uncompSize};
+  });
+}
+function writeZip(entries){
+  const out=[]; const pushU16=v=>{ out.push(v&0xFF,(v>>8)&0xFF); };
+  const pushU32=v=>{ out.push(v&0xFF,(v>>8)&0xFF,(v>>16)&0xFF,(v>>24)&0xFF); };
+  const pushBytes=b=>{ for(let i=0;i<b.length;i++) out.push(b[i]); };
+  const central=[];
+  for(const e of entries){
+    const nameB=utf8Bytes(e.name);
+    const data=e.data instanceof Uint8Array?e.data:new Uint8Array(e.data||[]);
+    const crc=crc32(data); const localOff=out.length;
+    pushU32(0x04034b50); pushU16(20); pushU16(0x0800); pushU16(0); pushU16(0); pushU16(0);
+    pushU32(crc); pushU32(data.length); pushU32(data.length);
+    pushU16(nameB.length); pushU16(0); pushBytes(nameB); pushBytes(data);
+    central.push({nameB,crc,size:data.length,localOff});
+  }
+  const cdOff=out.length;
+  for(const c of central){
+    pushU32(0x02014b50); pushU16(20); pushU16(20); pushU16(0x0800); pushU16(0); pushU16(0); pushU16(0);
+    pushU32(c.crc); pushU32(c.size); pushU32(c.size);
+    pushU16(c.nameB.length); pushU16(0); pushU16(0); pushU16(0); pushU16(0); pushU32(0);
+    pushU32(c.localOff); pushBytes(c.nameB);
+  }
+  const cdSize=out.length-cdOff;
+  pushU32(0x06054b50); pushU16(0); pushU16(0);
+  pushU16(central.length); pushU16(central.length);
+  pushU32(cdSize); pushU32(cdOff); pushU16(0);
+  return new Uint8Array(out);
+}
+
+/* ---------------- CSV ---------------- */
+function parseCsv(text){
+  const rows=[]; let row=[], field="", inQ=false;
+  const s=String(text||"").replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(inQ){
+      if(c==='"'){ if(s[i+1]==='"'){ field+='"'; i++; } else inQ=false; }
+      else field+=c;
+    } else if(c==='"') inQ=true;
+    else if(c===","){ row.push(field); field=""; }
+    else if(c==="\n"){ row.push(field); field=""; rows.push(row); row=[]; }
+    else field+=c;
+  }
+  if(field!==""||row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r=>r.length>1||(r.length===1&&r[0].trim()!==""));
+}
+function csvEscape(v){
+  const s=String(v==null?"":v);
+  return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function parseTsv(text){
+  const s=String(text||"").replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+  return s.split("\n").filter(l=>l.length).map(l=>l.split("\t"));
+}
+
+/* ---------------- A1 addressing ---------------- */
+function colToLetter(n){
+  let s=""; n++;
+  while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26); }
+  return s;
+}
+function letterToCol(s){
+  let n=0; s=s.toUpperCase();
+  for(let i=0;i<s.length;i++) n=n*26+(s.charCodeAt(i)-64);
+  return n-1;
+}
+function parseRef(ref){
+  const m=/^\$?([A-Za-z]{1,3})\$?([0-9]+)$/.exec(String(ref).trim());
+  if(!m) return null;
+  return { r: parseInt(m[2],10)-1, c: letterToCol(m[1]) };
+}
+function a1(r,c){ return colToLetter(c)+(r+1); }
+function cellKey(r,c){ return r+","+c; }
+
+/* ---------------- state ---------------- */
+const DEFAULT_ROWS=100, DEFAULT_COLS=26, DEFAULT_COL_W=100, DEFAULT_ROW_H=24;
+function newSheet(name){
+  return { id: uid(), name: name||"Sheet1", rows: DEFAULT_ROWS, cols: DEFAULT_COLS,
+    colWidths:{}, rowHeights:{}, cells:{}, merged:[], hiddenRows:{}, filters:[] };
+}
+function newWorkbook(){
+  const wb={ name:"Untitled workbook", sheets:[newSheet("Sheet1")], activeSheet:0, created:new Date().toISOString() };
+  seedWelcome(wb.sheets[0]);
+  return wb;
+}
+function seedWelcome(sh){
+  const put=(r,c,v,f,s)=>{ sh.cells[cellKey(r,c)]={v:v, f:f||null, s:s||null}; };
+  put(0,0,"Welcome to Pocket Sheets",null,{b:1});
+  put(1,0,"Type in any cell. Press Enter to move down, Tab to move right. Formulas start with =");
+  put(3,0,"Item",null,{b:1}); put(3,1,"Price",null,{b:1}); put(3,2,"Qty",null,{b:1}); put(3,3,"Total",null,{b:1});
+  put(4,0,"Apples"); put(4,1,2); put(4,2,3); put(4,3,0,"=B5*C5");
+  put(5,0,"Bread"); put(5,1,3.5); put(5,2,2); put(5,3,0,"=B6*C6");
+  put(6,0,"Cheese"); put(6,1,5); put(6,2,1); put(6,3,0,"=B7*C7");
+  put(7,0,"Total",null,{b:1}); put(7,3,0,"=SUM(D5:D7)",{b:1});
+  put(9,0,"Try it: click D8 — the formula shows in the formula bar above.");
+  put(10,0,"Select A5:D7, then use Sort A–Z. File menu (top right) imports .xlsx and .csv and exports .xlsx, .csv, and .weave.");
+  put(11,0,"Your work saves automatically on this device. Nothing leaves your device.");
+}
+let state = newWorkbook();
+function activeSheet(){ return state.sheets[state.activeSheet]; }
+let sel = { r:0, c:0, r1:0, c1:0, r2:0, c2:0 };   // active cell + selection range
+let viewMode = "grid";
+let editing = null; // {r,c} while the cell editor is open
+
+/* ---------------- undo / redo ---------------- */
+const undoStack=[], redoStack=[];
+function snapshot(){ return JSON.stringify({sheets:state.sheets, activeSheet:state.activeSheet, name:state.name}); }
+function pushUndo(){
+  undoStack.push(snapshot()); if(undoStack.length>50) undoStack.shift();
+  redoStack.length=0; updateUndoButtons();
+}
+function restoreSnapshot(json){
+  const d=JSON.parse(json);
+  state.sheets=d.sheets; state.activeSheet=d.activeSheet; state.name=d.name;
+  state.sheets.forEach(sh=>{ if(!sh.filters) sh.filters=[]; if(!sh.hiddenRows) sh.hiddenRows={}; });
+  sel={r:0,c:0,r1:0,c1:0,r2:0,c2:0};
+  recomputeAll(); renderAll(); scheduleSave();
+}
+function doUndo(){ if(!undoStack.length) return; redoStack.push(snapshot()); restoreSnapshot(undoStack.pop()); updateUndoButtons(); }
+function doRedo(){ if(!redoStack.length) return; undoStack.push(snapshot()); restoreSnapshot(redoStack.pop()); updateUndoButtons(); }
+function updateUndoButtons(){
+  const u=$("#undoBtn"), r=$("#redoBtn");
+  if(u) u.disabled=!undoStack.length;
+  if(r) r.disabled=!redoStack.length;
+}
+
+/* ---------------- persistence: IndexedDB primary, localStorage fallback ---------------- */
+const DB_NAME="pocket-sheets", STORE="kv", LS_KEY="pocket-sheets-workbook";
+let storeMode="localStorage"; // "indexedDB" | "localStorage"
+let dbPromise=null;
+function openDB(){
+  if(dbPromise) return dbPromise;
+  dbPromise=new Promise((resolve,reject)=>{
+    if(typeof indexedDB==="undefined"){ reject(new Error("no indexedDB")); return; }
+    let req;
+    try{ req=indexedDB.open(DB_NAME,1); }catch(e){ reject(e); return; }
+    req.onupgradeneeded=()=>{ try{ req.result.createObjectStore(STORE); }catch(e){} };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error("indexedDB open failed"));
+  });
+  return dbPromise;
+}
+function idbPut(value){
+  return openDB().then(db=>new Promise((resolve,reject)=>{
+    try{
+      const tx=db.transaction(STORE,"readwrite");
+      tx.objectStore(STORE).put(value,"workbook");
+      tx.oncomplete=()=>resolve(); tx.onerror=()=>reject(tx.error||new Error("idb put failed"));
+    }catch(e){ reject(e); }
+  }));
+}
+function idbGet(){
+  return openDB().then(db=>new Promise((resolve,reject)=>{
+    try{
+      const tx=db.transaction(STORE,"readonly");
+      const req=tx.objectStore(STORE).get("workbook");
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>reject(req.error||new Error("idb get failed"));
+    }catch(e){ reject(e); }
+  }));
+}
+function setSaveState(msg,limited){
+  const el=$("#saveState"); if(!el) return;
+  el.textContent=msg; el.classList.toggle("limited",!!limited);
+}
+let saveTimer=null, saveFailed=false;
+function scheduleSave(){
+  setSaveState("Saving…");
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveNow,400);
+}
+async function saveNow(){
+  const json=JSON.stringify(state);
+  if(storeMode==="indexedDB"){
+    try{ await idbPut(json); setSaveState("Saved"); saveFailed=false; return; }
+    catch(e){ storeMode="localStorage"; }
+  }
+  try{
+    localStorage.setItem(LS_KEY,json);
+    setSaveState(storeMode==="indexedDB"?"Saved":"Saved (limited storage)", storeMode!=="indexedDB");
+    saveFailed=false;
+  }catch(e){
+    setSaveState("Couldn't save — export a backup (.weave) now",true);
+    if(!saveFailed){ saveFailed=true; toast("Couldn't save — export a backup from the File menu."); }
+  }
+}
+async function loadSaved(){
+  try{
+    const v=await idbGet();
+    if(v){ storeMode="indexedDB"; return JSON.parse(v); }
+  }catch(e){ /* fall through to localStorage */ }
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(raw){ storeMode="localStorage"; return JSON.parse(raw); }
+  }catch(e){}
+  return null;
+}
+function normaliseWorkbook(wb){
+  if(!wb || !Array.isArray(wb.sheets) || !wb.sheets.length) return newWorkbook();
+  wb.sheets.forEach(sh=>{
+    if(typeof sh.rows!=="number"||sh.rows<1) sh.rows=DEFAULT_ROWS;
+    if(typeof sh.cols!=="number"||sh.cols<1) sh.cols=DEFAULT_COLS;
+    if(!sh.cells) sh.cells={};
+    if(!sh.colWidths) sh.colWidths={};
+    if(!sh.rowHeights) sh.rowHeights={};
+    if(!Array.isArray(sh.merged)) sh.merged=[];
+    if(!sh.hiddenRows) sh.hiddenRows={};
+    if(!Array.isArray(sh.filters)) sh.filters=[];
+    if(!sh.id) sh.id=uid();
+    if(!sh.name) sh.name="Sheet";
+  });
+  if(typeof wb.activeSheet!=="number"||wb.activeSheet<0||wb.activeSheet>=wb.sheets.length) wb.activeSheet=0;
+  if(!wb.name) wb.name="Untitled workbook";
+  return wb;
+}
+
+/* ---------------- formula engine ---------------- */
+const FORMULA_FUNCS=["SUM","AVERAGE","COUNT","COUNTA","MIN","MAX","IF","CONCATENATE","VLOOKUP","COUNTIF","SUMIF","ROUND","ABS","UPPER","LOWER","TRIM","LEN","TODAY","NOW","IFERROR"];
+function tokenizeFormula(s){
+  const tokens=[]; let i=0;
+  while(i<s.length){
+    const ch=s[i];
+    if(/\s/.test(ch)){ i++; continue; }
+    if(ch==='"'){
+      let j=i+1, str="";
+      while(j<s.length){
+        if(s[j]==='"'){ if(s[j+1]==='"'){ str+='"'; j+=2; } else break; }
+        else { str+=s[j]; j++; }
+      }
+      if(j>=s.length) throw new Error("Unterminated string");
+      tokens.push({t:"str",v:str}); i=j+1; continue;
+    }
+    if(ch==="'"){
+      let j=i+1, name="";
+      while(j<s.length && s[j]!=="'") name+=s[j++];
+      if(j>=s.length||s[j]!=="'") throw new Error("Unterminated sheet name");
+      j++;
+      if(s[j]!=="!") throw new Error("Expected ! after sheet name");
+      j++;
+      const m=/^\$?[A-Za-z]{1,3}\$?[0-9]+/.exec(s.slice(j));
+      if(!m) throw new Error("Bad cell reference after !");
+      tokens.push({t:"ref",sheet:name,ref:m[0]}); j+=m[0].length; i=j; continue;
+    }
+    if(/[A-Za-z_$]/.test(ch)){
+      let j=i;
+      while(j<s.length && /[A-Za-z0-9_.$]/.test(s[j])) j++;
+      const word=s.slice(i,j);
+      if(s[j]==="!"){
+        j++;
+        const m=/^\$?[A-Za-z]{1,3}\$?[0-9]+/.exec(s.slice(j));
+        if(!m) throw new Error("Bad cell reference after !");
+        tokens.push({t:"ref",sheet:word,ref:m[0]}); j+=m[0].length; i=j; continue;
+      }
+      if(/^\$?[A-Za-z]{1,3}\$?[0-9]+$/.test(word)){ tokens.push({t:"ref",ref:word}); i=j; continue; }
+      tokens.push({t:"ident",v:word.toUpperCase()}); i=j; continue;
+    }
+    if(/[0-9]/.test(ch)){
+      let j=i;
+      while(j<s.length && /[0-9.]/.test(s[j])) j++;
+      const num=parseFloat(s.slice(i,j));
+      if(isNaN(num)) throw new Error("Bad number");
+      tokens.push({t:"num",v:num}); i=j; continue;
+    }
+    if(ch===":"){ tokens.push({t:"colon"}); i++; continue; }
+    if(ch==="("){ tokens.push({t:"lparen"}); i++; continue; }
+    if(ch===")"){ tokens.push({t:"rparen"}); i++; continue; }
+    if(ch===","){ tokens.push({t:"comma"}); i++; continue; }
+    const two=s.slice(i,i+2);
+    if(two==="<="||two===">="||two==="<>" ){ tokens.push({t:"op",v:two}); i+=2; continue; }
+    if("+-*/%^&=<>".indexOf(ch)>=0){ tokens.push({t:"op",v:ch}); i++; continue; }
+    throw new Error("Unexpected character: "+ch);
+  }
+  return tokens;
+}
+function parseFormula(str){
+  const toks=tokenizeFormula(str); let p=0;
+  const peek=()=>toks[p];
+  const next=()=>toks[p++];
+  function expect(type,what){ const t=next(); if(!t||t.t!==type) throw new Error("Expected "+(what||type)); return t; }
+  function parseExpr(){ return parseComparison(); }
+  function parseComparison(){
+    let left=parseConcat();
+    while(peek()&&peek().t==="op"&&["=","<>","<",">","<=",">="].indexOf(peek().v)>=0){
+      const op=next().v; const right=parseConcat(); left={k:"bin",op:op,left:left,right:right};
+    }
+    return left;
+  }
+  function parseConcat(){
+    let left=parseAdd();
+    while(peek()&&peek().t==="op"&&peek().v==="&"){ next(); const right=parseAdd(); left={k:"bin",op:"&",left:left,right:right}; }
+    return left;
+  }
+  function parseAdd(){
+    let left=parseMul();
+    while(peek()&&peek().t==="op"&&(peek().v==="+"||peek().v==="-")){ const op=next().v; const right=parseMul(); left={k:"bin",op:op,left:left,right:right}; }
+    return left;
+  }
+  function parseMul(){
+    let left=parsePow();
+    while(peek()&&peek().t==="op"&&(peek().v==="*"||peek().v==="/")){ const op=next().v; const right=parsePow(); left={k:"bin",op:op,left:left,right:right}; }
+    return left;
+  }
+  function parsePow(){
+    const left=parseUnary();
+    if(peek()&&peek().t==="op"&&peek().v==="^"){ next(); const right=parsePow(); return {k:"bin",op:"^",left:left,right:right}; }
+    return left;
+  }
+  function parseUnary(){
+    if(peek()&&peek().t==="op"&&peek().v==="-"){ next(); return {k:"neg",v:parseUnary()}; }
+    if(peek()&&peek().t==="op"&&peek().v==="+"){ next(); return parseUnary(); }
+    return parsePostfix();
+  }
+  function parsePostfix(){
+    let node=parsePrimary();
+    while(peek()&&peek().t==="op"&&peek().v==="%"){ next(); node={k:"pct",v:node}; }
+    return node;
+  }
+  function parsePrimary(){
+    const t=next();
+    if(!t) throw new Error("Unexpected end of formula");
+    if(t.t==="num") return {k:"num",v:t.v};
+    if(t.t==="str") return {k:"str",v:t.v};
+    if(t.t==="ref"){
+      if(peek()&&peek().t==="colon"){
+        next();
+        const t2=next();
+        if(!t2||t2.t!=="ref") throw new Error("Expected cell reference after :");
+        return {k:"range",sheet:t.sheet||t2.sheet||null,from:t.ref,to:t2.ref};
+      }
+      return {k:"ref",sheet:t.sheet||null,ref:t.ref};
+    }
+    if(t.t==="ident"){
+      if(t.v==="TRUE") return {k:"bool",v:true};
+      if(t.v==="FALSE") return {k:"bool",v:false};
+      if(peek()&&peek().t==="lparen"){
+        next();
+        const args=[];
+        if(!(peek()&&peek().t==="rparen")){
+          while(true){ args.push(parseExpr()); if(peek()&&peek().t==="comma"){ next(); continue; } break; }
+        }
+        expect("rparen",")");
+        return {k:"call",name:t.v,args:args};
+      }
+      throw new Error("Unknown name: "+t.v);
+    }
+    if(t.t==="lparen"){ const e=parseExpr(); expect("rparen",")"); return e; }
+    throw new Error("Unexpected token in formula");
+  }
+  const ast=parseExpr();
+  if(p<toks.length) throw new Error("Unexpected text after formula");
+  return ast;
+}
+function isErr(v){ return typeof v==="string" && v.charAt(0)==="#" && /^(#DIV\/0!|#VALUE!|#NAME\?|#REF!|#N\/A|#CIRC!)$/.test(v); }
+function toNum(v){
+  if(typeof v==="number") return v;
+  if(typeof v==="boolean") return v?1:0;
+  if(typeof v==="string"){
+    if(v.trim()==="") return null;
+    const n=Number(v); return isNaN(n)?null:n;
+  }
+  return null;
+}
+function toStr(v){
+  if(v==null) return "";
+  if(typeof v==="boolean") return v?"TRUE":"FALSE";
+  if(typeof v==="number") return String(v);
+  return String(v);
+}
+function flattenVals(v,out){
+  if(Array.isArray(v)){ for(const x of v) flattenVals(x,out); }
+  else out.push(v);
+  return out;
+}
+function evalAst(node,ctx){
+  switch(node.k){
+    case "num": return node.v;
+    case "str": return node.v;
+    case "bool": return node.v;
+    case "neg": { const v=evalAst(node.v,ctx); if(isErr(v)) return v; const n=toNum(v); if(n==null) return "#VALUE!"; return -n; }
+    case "pct": { const v=evalAst(node.v,ctx); if(isErr(v)) return v; const n=toNum(v); if(n==null) return "#VALUE!"; return n/100; }
+    case "ref": {
+      const pos=parseRef(node.ref); if(!pos) return "#REF!";
+      return ctx.getCell(node.sheet,pos.r,pos.c);
+    }
+    case "range": {
+      const a=parseRef(node.from), b=parseRef(node.to);
+      if(!a||!b) return "#REF!";
+      const r1=Math.min(a.r,b.r), r2=Math.max(a.r,b.r), c1=Math.min(a.c,b.c), c2=Math.max(a.c,b.c);
+      const rows=[];
+      for(let r=r1;r<=r2;r++){ const row=[]; for(let c=c1;c<=c2;c++) row.push(ctx.getCell(node.sheet,r,c)); rows.push(row); }
+      return rows;
+    }
+    case "bin": {
+      const l=evalAst(node.left,ctx), r=evalAst(node.right,ctx);
+      if(isErr(l)) return l; if(isErr(r)) return r;
+      switch(node.op){
+        case "+": case "-": case "*": case "/": case "^": {
+          const a=toNum(l), b=toNum(r);
+          if(a==null||b==null) return "#VALUE!";
+          if(node.op==="+") return a+b;
+          if(node.op==="-") return a-b;
+          if(node.op==="*") return a*b;
+          if(node.op==="/"){ if(b===0) return "#DIV/0!"; return a/b; }
+          return Math.pow(a,b);
+        }
+        case "&": return toStr(l)+toStr(r);
+        case "=": return l==r;
+        case "<>": return l!=r;
+        case "<": { const a=toNum(l), b=toNum(r); if(a!=null&&b!=null) return a<b; return toStr(l)<toStr(r); }
+        case ">": { const a=toNum(l), b=toNum(r); if(a!=null&&b!=null) return a>b; return toStr(l)>toStr(r); }
+        case "<=": { const a=toNum(l), b=toNum(r); if(a!=null&&b!=null) return a<=b; return toStr(l)<=toStr(r); }
+        case ">=": { const a=toNum(l), b=toNum(r); if(a!=null&&b!=null) return a>=b; return toStr(l)>=toStr(r); }
+      }
+      return "#VALUE!";
+    }
+    case "call": return evalCall(node,ctx);
+  }
+  return "#VALUE!";
+}
+function evalCall(node,ctx){
+  const name=node.name;
+  if(FORMULA_FUNCS.indexOf(name)<0) return "#NAME?";
+  const args=node.args;
+  if(name==="TODAY"){ const d=new Date(); return dateToSerial(d.getFullYear(),d.getMonth()+1,d.getDate()); }
+  if(name==="NOW"){ const d=new Date(); return dateToSerial(d.getFullYear(),d.getMonth()+1,d.getDate()) + (d.getHours()*3600+d.getMinutes()*60+d.getSeconds())/86400; }
+  const vals=args.map(a=>evalAst(a,ctx));
+  for(const v of vals) if(isErr(v)) return v;
+  const flat=[]; vals.forEach(v=>flattenVals(v,flat));
+  const nums=flat.map(toNum).filter(v=>v!=null);
+  switch(name){
+    case "SUM": return nums.reduce((a,b)=>a+b,0);
+    case "AVERAGE": return nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:"#DIV/0!";
+    case "COUNT": return nums.length;
+    case "COUNTA": return flat.filter(v=>v!=null&&v!=="").length;
+    case "MIN": return nums.length?Math.min.apply(null,nums):0;
+    case "MAX": return nums.length?Math.max.apply(null,nums):0;
+    case "IF": {
+      if(args.length<2) return "#VALUE!";
+      const c=vals[0];
+      const truthy = (typeof c==="boolean")?c : (toNum(c)!=null? toNum(c)!==0 : String(c).toUpperCase()==="TRUE");
+      return truthy ? vals[1] : (args.length>2? vals[2] : false);
+    }
+    case "IFERROR": return (args.length<2)?"#VALUE!" : (isErr(vals[0])? vals[1] : vals[0]);
+    case "CONCATENATE": return flat.map(toStr).join("");
+    case "ROUND": {
+      if(nums.length<1) return "#VALUE!";
+      const n=nums[0], d=nums.length>1? Math.round(nums[1]) : 0;
+      const p=Math.pow(10,d); return Math.round(n*p)/p;
+    }
+    case "ABS": return nums.length?Math.abs(nums[0]):"#VALUE!";
+    case "UPPER": return toStr(vals[0]).toUpperCase();
+    case "LOWER": return toStr(vals[0]).toLowerCase();
+    case "TRIM": return toStr(vals[0]).replace(/^\s+|\s+$/g,"").replace(/\s+/g," ");
+    case "LEN": return toStr(vals[0]).length;
+    case "VLOOKUP": {
+      if(args.length<3) return "#VALUE!";
+      const lookup=vals[0], table=vals[1], colIdx=Math.floor(toNum(vals[2])||0);
+      if(!Array.isArray(table)||!table.length) return "#N/A";
+      if(colIdx<1) return "#VALUE!";
+      const exact = args.length<4 ? true : (vals[3]===false||toNum(vals[3])===0);
+      const rows = Array.isArray(table[0])? table : [table];
+      if(exact){
+        for(const row of rows){
+          if(!Array.isArray(row)) continue;
+          if(row[0]==lookup || String(row[0])===String(lookup)){
+            if(colIdx>row.length) return "#REF!";
+            return row[colIdx-1]==null?"":row[colIdx-1];
+          }
+        }
+        return "#N/A";
+      }
+      let best=null;
+      for(const row of rows){
+        if(!Array.isArray(row)) continue;
+        const a=toNum(row[0]), b=toNum(lookup);
+        const cmp = (a!=null&&b!=null)? (a<=b) : (toStr(row[0])<=toStr(lookup));
+        if(cmp) best=row; else break;
+      }
+      if(!best) return "#N/A";
+      if(colIdx>best.length) return "#REF!";
+      return best[colIdx-1]==null?"":best[colIdx-1];
+    }
+    case "COUNTIF": case "SUMIF": {
+      if(args.length<2) return "#VALUE!";
+      const range=vals[0], crit=vals[1];
+      const cells=[]; flattenVals(range,cells);
+      let sumRange=null;
+      if(name==="SUMIF"&&args.length>2){ sumRange=[]; flattenVals(vals[2],sumRange); }
+      let count=0, sum=0;
+      const match=(v)=>{
+        if(typeof crit==="string" && /^(>=|<=|<>|>|<|=)/.test(crit)){
+          const m=/^(>=|<=|<>|>|<|=)(.*)$/.exec(crit);
+          const op=m[1], num=Number(m[2]);
+          const vn=toNum(v);
+          if(!isNaN(num)&&vn!=null){
+            if(op===">") return vn>num; if(op==="<") return vn<num;
+            if(op===">=") return vn>=num; if(op==="<=") return vn<=num;
+            if(op==="=") return vn===num; if(op==="<>") return vn!==num;
+          }
+          const vs=toStr(v);
+          if(op==="=") return vs===m[2]; if(op==="<>") return vs!==m[2];
+          if(op===">") return vs>m[2]; if(op==="<") return vs<m[2];
+          if(op===">=") return vs>=m[2]; if(op==="<=") return vs<=m[2];
+        }
+        if(typeof crit==="number") return toNum(v)===crit;
+        return String(v)===String(crit);
+      };
+      for(let i=0;i<cells.length;i++){
+        if(match(cells[i])){
+          count++;
+          if(sumRange){ const n=toNum(sumRange[i]); if(n!=null) sum+=n; }
+          else { const n=toNum(cells[i]); if(n!=null) sum+=n; }
+        }
+      }
+      return name==="COUNTIF"?count:sum;
+    }
+  }
+  return "#VALUE!";
+}
+function evaluateFormula(formulaText, sheetName){
+  // formulaText includes the leading "="
+  const body=String(formulaText).slice(1);
+  let ast;
+  try{ ast=parseFormula(body); }
+  catch(e){ return "#NAME?"; }
+  const ctx={
+    getCell: (shName,r,c)=>{
+      let sh=null;
+      if(shName){ sh=state.sheets.find(s=>s.name===shName); if(!sh) return "#REF!"; }
+      else sh=state.sheets.find(s=>s.name===sheetName) || activeSheet();
+      const cell=sh.cells[cellKey(r,c)];
+      if(!cell) return "";
+      if(cell.f) return cell.v;
+      return cell.v==null?"":cell.v;
+    }
+  };
+  try{ return evalAst(ast,ctx); }
+  catch(e){ return "#VALUE!"; }
+}
+function collectRefs(node, sheetName, out){
+  if(!node) return;
+  if(node.k==="ref"){
+    const pos=parseRef(node.ref);
+    if(pos) out.push({sheet:node.sheet||sheetName, r:pos.r, c:pos.c});
+  }
+  else if(node.k==="range"){
+    const a=parseRef(node.from), b=parseRef(node.to);
+    if(a&&b){
+      const r1=Math.min(a.r,b.r), r2=Math.max(a.r,b.r), c1=Math.min(a.c,b.c), c2=Math.max(a.c,b.c);
+      if((r2-r1+1)*(c2-c1+1)<=5000){
+        for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++) out.push({sheet:node.sheet||sheetName, r:r, c:c});
+      }
+    }
+  }
+  else if(node.k==="bin"){ collectRefs(node.left,sheetName,out); collectRefs(node.right,sheetName,out); }
+  else if(node.k==="neg"||node.k==="pct"){ collectRefs(node.v,sheetName,out); }
+  else if(node.k==="call"){ node.args.forEach(a=>collectRefs(a,sheetName,out)); }
+}
+function findCyclicCells(sh){
+  // Dependency-graph cycle detection within one sheet. A pure reference loop
+  // (A1 =B1, B1 =A1) converges to a stable value, so value-convergence alone
+  // can never see it — the graph is the only reliable check.
+  const formulaCells={};
+  for(const k in sh.cells){
+    const cell=sh.cells[k];
+    if(cell&&cell.f){
+      try{ formulaCells[k]=parseFormula(cell.f.slice(1)); }catch(e){ /* bad formula: evaluates to #NAME? */ }
+    }
+  }
+  const deps={};
+  for(const k in formulaCells){
+    const refs=[]; collectRefs(formulaCells[k], sh.name, refs);
+    deps[k]=refs.filter(r=>r.sheet===sh.name).map(r=>cellKey(r.r,r.c)).filter(rk=>formulaCells[rk]);
+  }
+  const stateMap={}, cyclic=new Set();
+  function visit(k,stack){
+    stateMap[k]=1; stack.push(k);
+    for(const d of deps[k]||[]){
+      if(stateMap[d]===1){
+        const idx=stack.indexOf(d);
+        for(let i=idx;i<stack.length;i++) cyclic.add(stack[i]);
+      } else if(!stateMap[d]) visit(d,stack);
+    }
+    stack.pop(); stateMap[k]=2;
+  }
+  for(const k in deps) if(!stateMap[k]) visit(k,[]);
+  return cyclic;
+}
+function recomputeSheet(sh){
+  // fixed-point passes so formulas that depend on other formulas converge
+  const cyclic=findCyclicCells(sh);
+  cyclic.forEach(k=>{ if(sh.cells[k]) sh.cells[k].v="#CIRC!"; });
+  for(let pass=0;pass<20;pass++){
+    let changed=false;
+    for(const k in sh.cells){
+      const cell=sh.cells[k];
+      if(!cell||!cell.f||cyclic.has(k)) continue;
+      const nv=evaluateFormula(cell.f, sh.name);
+      if(nv!==cell.v){ cell.v=nv; changed=true; }
+    }
+    if(!changed) break;
+  }
+}
+function recomputeAll(){ state.sheets.forEach(recomputeSheet); }
+
+/* ---------------- dates (Excel serial) ---------------- */
+function dateToSerial(y,m,d){
+  // Excel serial: 1 = 1900-01-01, i.e. days since 1899-12-31, plus 1 for the
+  // fake 1900-02-29 (Excel's 1900 leap-year bug) on dates after 1900-02-28.
+  const base=Date.UTC(1899,11,31), t=Date.UTC(y,m-1,d);
+  let days=Math.round((t-base)/86400000);
+  if(days>59) days+=1;
+  return days;
+}
+function serialToDate(serial){
+  let days=Math.floor(serial);
+  if(days>60) days-=1; // undo the 1900 leap-year bug
+  const t=Date.UTC(1899,11,31)+days*86400000;
+  const d=new Date(t);
+  return d.toISOString().slice(0,10);
+}
+function isDateFmtId(id){
+  return [14,15,16,17,18,19,20,21,22,45,46,47].indexOf(id)>=0;
+}
+
+/* ---------------- cell access & formatting ---------------- */
+function getCell(sh,r,c){ return sh.cells[cellKey(r,c)]||null; }
+function setCellRaw(sh,r,c,value){
+  // value: string typed by the user (or pasted). Formulas start with "=".
+  if(value==null||value===""){ delete sh.cells[cellKey(r,c)]; return; }
+  const s=String(value);
+  if(s.charAt(0)==="="){
+    const existing=sh.cells[cellKey(r,c)];
+    sh.cells[cellKey(r,c)]={ v:0, f:s, s: existing?existing.s:null };
+  } else {
+    const existing=sh.cells[cellKey(r,c)];
+    let v=s;
+    if(/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(s.trim())) v=parseFloat(s);
+    else if(s.trim().toUpperCase()==="TRUE") v=true;
+    else if(s.trim().toUpperCase()==="FALSE") v=false;
+    sh.cells[cellKey(r,c)]={ v:v, f:null, s: existing?existing.s:null };
+  }
+}
+function displayValue(sh,cell){
+  if(!cell) return "";
+  if(cell.f){
+    const v=cell.v;
+    if(isErr(v)) return v;
+    return formatNumber(v, cell.s&&cell.s.fmt);
+  }
+  return formatNumber(cell.v, cell.s&&cell.s.fmt);
+}
+function formatNumber(v,fmt){
+  if(v==null) return "";
+  if(typeof v==="boolean") return v?"TRUE":"FALSE";
+  if(typeof v==="number"){
+    if(!fmt) return String(v);
+    if(fmt==="number") return v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(fmt==="currency") return "$"+v.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    if(fmt==="percent") return (v*100).toLocaleString("en-US",{maximumFractionDigits:2})+"%";
+    if(fmt==="date") return serialToDate(v);
+    return String(v);
+  }
+  return String(v);
+}
+function cellStyleCss(cell){
+  const s=cell&&cell.s;
+  if(!s) return "";
+  let css="";
+  if(s.b) css+="font-weight:700;";
+  if(s.i) css+="font-style:italic;";
+  if(s.fill) css+="background-color:"+s.fill+";";
+  if(s.color) css+="color:"+s.color+";";
+  if(s.border) css+="box-shadow:inset 0 0 0 1px #1F2A44;";
+  return css;
+}
+function applyStyleToSelection(stylePatch){
+  const sh=activeSheet();
+  pushUndo();
+  for(let r=Math.min(sel.r1,sel.r2);r<=Math.max(sel.r1,sel.r2);r++)
+    for(let c=Math.min(sel.c1,sel.c2);c<=Math.max(sel.c1,sel.c2);c++){
+      const k=cellKey(r,c);
+      if(!sh.cells[k]) sh.cells[k]={v:"",f:null,s:{}};
+      if(!sh.cells[k].s) sh.cells[k].s={};
+      Object.assign(sh.cells[k].s, stylePatch);
+      if(sh.cells[k].v===""&&!sh.cells[k].f&&(!sh.cells[k].s||!Object.keys(sh.cells[k].s).length)) delete sh.cells[k];
+    }
+  renderGrid(); scheduleSave();
+}
+
+/* ---------------- grid rendering ---------------- */
+let colResize=null;
+function renderAll(){ renderTabs(); renderGrid(); renderCards(); updateFormulaBar(); updateStatusBar(); updateUndoButtons(); }
+function renderTabs(){
+  const wrap=$("#sheetTabs"); wrap.innerHTML="";
+  state.sheets.forEach((sh,i)=>{
+    const b=document.createElement("button");
+    b.type="button"; b.className="sheet-tab"+(i===state.activeSheet?" active":"");
+    b.textContent=sh.name; b.title="Double-click to rename. Right-click to delete.";
+    b.onclick=()=>{ switchSheet(i); };
+    b.ondblclick=()=>{ renameSheetDialog(i); };
+    b.oncontextmenu=(e)=>{ e.preventDefault(); deleteSheetDialog(i); };
+    wrap.appendChild(b);
+  });
+  const wb=$("#wbName"); if(wb&&wb.value!==state.name) wb.value=state.name;
+}
+function renderGrid(){
+  const sh=activeSheet();
+  const table=$("#grid");
+  const frag=document.createDocumentFragment();
+  const thead=document.createElement("thead");
+  const hr=document.createElement("tr");
+  const corner=document.createElement("th");
+  corner.className="corner"; corner.textContent=""; corner.style.width="44px"; corner.style.minWidth="44px";
+  hr.appendChild(corner);
+  for(let c=0;c<sh.cols;c++){
+    const th=document.createElement("th");
+    th.textContent=colToLetter(c);
+    const w=sh.colWidths[c]||DEFAULT_COL_W;
+    th.style.width=w+"px"; th.style.minWidth=w+"px"; th.style.maxWidth=w+"px";
+    th.dataset.col=c;
+    hr.appendChild(th);
+  }
+  thead.appendChild(hr);
+  frag.appendChild(thead);
+  const tbody=document.createElement("tbody");
+  for(let r=0;r<sh.rows;r++){
+    if(sh.hiddenRows[r]) continue;
+    const tr=document.createElement("tr");
+    const rh=document.createElement("th");
+    rh.textContent=String(r+1);
+    const h=sh.rowHeights[r]||DEFAULT_ROW_H;
+    rh.style.height=h+"px";
+    tr.appendChild(rh);
+    for(let c=0;c<sh.cols;c++){
+      const td=document.createElement("td");
+      const w=sh.colWidths[c]||DEFAULT_COL_W;
+      td.style.width=w+"px"; td.style.minWidth=w+"px"; td.style.maxWidth=w+"px";
+      td.style.height=h+"px";
+      td.dataset.r=r; td.dataset.c=c;
+      const cell=getCell(sh,r,c);
+      const span=document.createElement("span"); span.className="celltxt";
+      const dv=displayValue(sh,cell);
+      span.textContent=dv;
+      td.appendChild(span);
+      if(cell&&cell.f&&isErr(cell.v)) td.classList.add("err");
+      const css=cellStyleCss(cell); if(css) td.style.cssText+=css;
+      if(r===sel.r&&c===sel.c) td.classList.add("active");
+      if(r>=Math.min(sel.r1,sel.r2)&&r<=Math.max(sel.r1,sel.r2)&&c>=Math.min(sel.c1,sel.c2)&&c<=Math.max(sel.c1,sel.c2)) td.classList.add("sel");
+      // merged cells: only top-left renders content; others hidden by colspan handling below
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  frag.appendChild(tbody);
+  // apply merged ranges (colspan/rowspan) after the table is built
+  table.innerHTML="";
+  table.appendChild(frag);
+  applyMergesToDom(sh,table);
+  updateStatusBar();
+}
+function applyMergesToDom(sh,table){
+  const tbody=table.querySelector("tbody");
+  if(!tbody) return;
+  const rows=tbody.querySelectorAll("tr");
+  const rowIndex={}; // visible row number -> tr element
+  rows.forEach(tr=>{ const th=tr.querySelector("th"); if(th) rowIndex[parseInt(th.textContent,10)-1]=tr; });
+  for(const m of sh.merged){
+    const top=rowIndex[m.r1];
+    if(!top) continue;
+    const cells=top.querySelectorAll("td");
+    const anchor=cells[m.c1];
+    if(!anchor) continue;
+    anchor.colSpan=(m.c2-m.c1+1);
+    anchor.rowSpan=(m.r2-m.r1+1);
+    for(let r=m.r1;r<=m.r2;r++){
+      const tr=rowIndex[r]; if(!tr) continue;
+      const tds=tr.querySelectorAll("td");
+      for(let c=m.c1;c<=m.c2;c++){
+        if(r===m.r1&&c===m.c1) continue;
+        const td=tds[c];
+        if(td) td.style.display="none";
+      }
+    }
+  }
+}
+function renderCards(){
+  const host=$("#cardsView");
+  if(viewMode!=="cards"){ host.classList.remove("on"); return; }
+  host.classList.add("on");
+  const sh=activeSheet();
+  // first non-empty row is the header
+  let headerRow=-1, maxC=0;
+  for(let r=0;r<sh.rows;r++){
+    let any=false;
+    for(let c=0;c<sh.cols;c++){ const cell=getCell(sh,r,c); if(cell&&(cell.v!==""&&cell.v!=null||cell.f)){ any=true; if(c+1>maxC) maxC=c+1; } }
+    if(any){ headerRow=r; break; }
+  }
+  if(headerRow<0){ host.innerHTML="<p style='color:var(--muted)'>This sheet is empty. Switch to Grid and type something first.</p>"; return; }
+  const headers=[];
+  for(let c=0;c<maxC;c++){ const cell=getCell(sh,headerRow,c); headers.push(cell?displayValue(sh,cell):colToLetter(c)); }
+  let html="";
+  let shown=0;
+  for(let r=headerRow+1;r<sh.rows&&shown<200;r++){
+    if(sh.hiddenRows[r]) continue;
+    let any=false; const vals=[];
+    for(let c=0;c<maxC;c++){ const cell=getCell(sh,r,c); const dv=cell?displayValue(sh,cell):""; vals.push(dv); if(dv!=="") any=true; }
+    if(!any) continue;
+    shown++;
+    html+='<div class="card"><h3>'+esc(vals[0]||("Row "+(r+1)))+'</h3><dl>';
+    for(let c=0;c<maxC;c++){
+      if(c===0) continue;
+      html+='<dt>'+esc(headers[c]||colToLetter(c))+'</dt><dd>'+esc(vals[c])+'</dd>';
+    }
+    html+='</dl></div>';
+  }
+  host.innerHTML=html||"<p style='color:var(--muted)'>No data rows below the header row.</p>";
+}
+function updateFormulaBar(){
+  const sh=activeSheet();
+  const cell=getCell(sh,sel.r,sel.c);
+  $("#nameBox").textContent=a1(sel.r,sel.c);
+  const fi=$("#formulaInput");
+  if(document.activeElement!==fi) fi.value = cell&&cell.f ? cell.f : (cell? String(cell.v==null?"":cell.v) : "");
+}
+function updateStatusBar(){
+  const sh=activeSheet();
+  const nums=[];
+  let count=0;
+  for(let r=Math.min(sel.r1,sel.r2);r<=Math.max(sel.r1,sel.r2);r++)
+    for(let c=Math.min(sel.c1,sel.c2);c<=Math.max(sel.c1,sel.c2);c++){
+      const cell=getCell(sh,r,c);
+      if(!cell) continue;
+      count++;
+      const n=toNum(cell.f?cell.v:cell.v);
+      if(n!=null) nums.push(n);
+    }
+  const parts=[];
+  if(count) parts.push("Count: "+count);
+  if(nums.length){
+    const sum=nums.reduce((a,b)=>a+b,0);
+    parts.push("Sum: "+(Math.round(sum*100)/100));
+    parts.push("Avg: "+(Math.round(sum/nums.length*100)/100));
+  }
+  const filt=sh.filters.length? " · Filter: "+sh.filters.map(f=>colToLetter(f.col)+" = "+f.value).join(", ") : "";
+  $("#statusbar").textContent=parts.join("   ")+filt;
+}
+
+/* ---------------- selection & editing ---------------- */
+function setSelection(r,c,extend){
+  const sh=activeSheet();
+  r=clamp(r,0,sh.rows-1); c=clamp(c,0,sh.cols-1);
+  if(extend){ sel.r2=r; sel.c2=c; sel.r=r; sel.c=c; }
+  else sel={r:r,c:c,r1:r,c1:c,r2:r,c2:c};
+  renderGrid(); updateFormulaBar(); updateStatusBar();
+}
+function ensureVisible(r,c){
+  if(r>=activeSheet().rows-1) activeSheet().rows=Math.min(1000, activeSheet().rows+10);
+  if(c>=activeSheet().cols-1) activeSheet().cols=Math.min(702, activeSheet().cols+1);
+}
+function commitEdit(value){
+  const sh=activeSheet();
+  const r=sel.r, c=sel.c;
+  pushUndo();
+  setCellRaw(sh,r,c,value);
+  recomputeSheet(sh);
+  renderGrid(); renderCards(); updateFormulaBar(); updateStatusBar(); scheduleSave();
+}
+function openEditor(r,c,initial){
+  const sh=activeSheet();
+  closeEditor(true);
+  editing={r:r,c:c};
+  const ed=$("#cellEditor");
+  const cell=getCell(sh,r,c);
+  ed.value = initial!=null? initial : (cell&&cell.f? cell.f : (cell? String(cell.v==null?"":cell.v):""));
+  const td=document.querySelector('#grid td[data-r="'+r+'"][data-c="'+c+'"]');
+  const wrap=$("#gridWrap");
+  if(td){
+    ed.style.display="block";
+    ed.style.left=(td.offsetLeft)+"px";
+    ed.style.top=(td.offsetTop)+"px";
+    ed.style.width=Math.max(td.offsetWidth,120)+"px";
+    ed.style.height=Math.max(td.offsetHeight,26)+"px";
+  } else {
+    ed.style.display="block"; ed.style.left="60px"; ed.style.top="40px"; ed.style.width="240px";
+  }
+  ed.focus();
+  if(initial==null) ed.select();
+  else ed.setSelectionRange(ed.value.length,ed.value.length);
+}
+function closeEditor(commit){
+  const ed=$("#cellEditor");
+  if(!editing) return;
+  const value=ed.value;
+  const r=editing.r, c=editing.c;
+  editing=null;
+  ed.style.display="none";
+  if(commit){ sel.r=r; sel.c=c; sel.r1=r; sel.c1=c; sel.r2=r; sel.c2=c; commitEdit(value); }
+  else { renderGrid(); updateFormulaBar(); }
+}
+function moveSelection(dr,dc,extend){
+  ensureVisible(sel.r+dr, sel.c+dc);
+  setSelection(sel.r+dr, sel.c+dc, extend);
+}
+
+/* ---------------- sheets ---------------- */
+function switchSheet(i){
+  if(i<0||i>=state.sheets.length) return;
+  closeEditor(false);
+  state.activeSheet=i;
+  sel={r:0,c:0,r1:0,c1:0,r2:0,c2:0};
+  renderAll(); scheduleSave();
+}
+function addSheet(name){
+  pushUndo();
+  let base=name||("Sheet"+(state.sheets.length+1));
+  let n=base, k=2;
+  while(state.sheets.some(s=>s.name===n)){ n=base+" "+(k++); }
+  const sh=newSheet(n);
+  state.sheets.push(sh);
+  state.activeSheet=state.sheets.length-1;
+  sel={r:0,c:0,r1:0,c1:0,r2:0,c2:0};
+  renderAll(); scheduleSave();
+  return sh;
+}
+function renameSheet(i,newName){
+  const sh=state.sheets[i]; if(!sh) return false;
+  newName=String(newName||"").trim();
+  if(!newName) return false;
+  if(state.sheets.some((s,j)=>j!==i&&s.name===newName)){ toast("A sheet with that name already exists."); return false; }
+  pushUndo();
+  sh.name=newName;
+  recomputeAll(); renderAll(); scheduleSave();
+  return true;
+}
+function deleteSheet(i){
+  if(state.sheets.length<=1){ toast("A workbook needs at least one sheet."); return false; }
+  pushUndo();
+  state.sheets.splice(i,1);
+  if(state.activeSheet>=state.sheets.length) state.activeSheet=state.sheets.length-1;
+  sel={r:0,c:0,r1:0,c1:0,r2:0,c2:0};
+  recomputeAll(); renderAll(); scheduleSave();
+  return true;
+}
+
+/* ---------------- rows / columns ---------------- */
+function insertRow(at){
+  const sh=activeSheet(); pushUndo();
+  const cells={};
+  for(const k in sh.cells){
+    const parts=k.split(","); let r=+parts[0], c=+parts[1];
+    if(r>=at) r++;
+    cells[cellKey(r,c)]=sh.cells[k];
+  }
+  sh.cells=cells;
+  sh.rows=Math.min(1000,sh.rows+1);
+  const merged=sh.merged.map(m=>({r1:m.r1>=at?m.r1+1:m.r1, r2:m.r2>=at?m.r2+1:m.r2, c1:m.c1, c2:m.c2}));
+  sh.merged=merged;
+  recomputeSheet(sh); renderGrid(); renderCards(); scheduleSave();
+}
+function deleteRows(r1,r2){
+  const sh=activeSheet(); pushUndo();
+  const n=r2-r1+1;
+  const cells={};
+  for(const k in sh.cells){
+    const parts=k.split(","); let r=+parts[0], c=+parts[1];
+    if(r>=r1&&r<=r2) continue;
+    if(r>r2) r-=n;
+    cells[cellKey(r,c)]=sh.cells[k];
+  }
+  sh.cells=cells;
+  sh.rows=Math.max(1,sh.rows-n);
+  sh.merged=sh.merged.filter(m=>!(m.r1>=r1&&m.r2<=r2)).map(m=>({r1:m.r1>r2?m.r1-n:m.r1, r2:m.r2>r2?m.r2-n:m.r2, c1:m.c1, c2:m.c2}));
+  recomputeSheet(sh); renderGrid(); renderCards(); scheduleSave();
+}
+function insertCol(at){
+  const sh=activeSheet(); pushUndo();
+  const cells={};
+  for(const k in sh.cells){
+    const parts=k.split(","); let r=+parts[0], c=+parts[1];
+    if(c>=at) c++;
+    cells[cellKey(r,c)]=sh.cells[k];
+  }
+  sh.cells=cells;
+  const widths={};
+  for(const k in sh.colWidths){ const c=+k; widths[c>=at?c+1:c]=sh.colWidths[k]; }
+  sh.colWidths=widths;
+  sh.cols=Math.min(702,sh.cols+1);
+  sh.merged=sh.merged.map(m=>({r1:m.r1,r2:m.r2,c1:m.c1>=at?m.c1+1:m.c1,c2:m.c2>=at?m.c2+1:m.c2}));
+  recomputeSheet(sh); renderGrid(); renderCards(); scheduleSave();
+}
+function deleteCols(c1,c2){
+  const sh=activeSheet(); pushUndo();
+  const n=c2-c1+1;
+  const cells={};
+  for(const k in sh.cells){
+    const parts=k.split(","); let r=+parts[0], c=+parts[1];
+    if(c>=c1&&c<=c2) continue;
+    if(c>c2) c-=n;
+    cells[cellKey(r,c)]=sh.cells[k];
+  }
+  sh.cells=cells;
+  const widths={};
+  for(const k in sh.colWidths){ const c=+k; if(c>=c1&&c<=c2) continue; widths[c>c2?c-n:c]=sh.colWidths[k]; }
+  sh.colWidths=widths;
+  sh.cols=Math.max(1,sh.cols-n);
+  sh.merged=sh.merged.filter(m=>!(m.c1>=c1&&m.c2<=c2)).map(m=>({r1:m.r1,r2:m.r2,c1:m.c1>c2?m.c1-n:m.c1,c2:m.c2>c2?m.c2-n:m.c2}));
+  recomputeSheet(sh); renderGrid(); renderCards(); scheduleSave();
+}
+
+/* ---------------- sort & filter ---------------- */
+function sortSelection(dir){
+  const sh=activeSheet();
+  const r1=Math.min(sel.r1,sel.r2), r2=Math.max(sel.r1,sel.r2);
+  const c1=Math.min(sel.c1,sel.c2), c2=Math.max(sel.c1,sel.c2);
+  const sortCol=c1;
+  if(r2-r1<1){ toast("Select at least two rows to sort."); return; }
+  pushUndo();
+  const rows=[];
+  for(let r=r1;r<=r2;r++){
+    const row={};
+    for(let c=c1;c<=c2;c++){ const cell=getCell(sh,r,c); if(cell) row[c]=cell; }
+    rows.push(row);
+  }
+  const keyVal=(row)=>{
+    const cell=row[sortCol];
+    if(!cell) return "";
+    const v=cell.f?cell.v:cell.v;
+    return v==null?"":v;
+  };
+  rows.sort((a,b)=>{
+    const va=keyVal(a), vb=keyVal(b);
+    const na=toNum(va), nb=toNum(vb);
+    let cmp=0;
+    if(na!=null&&nb!=null) cmp=na-nb;
+    else cmp=String(va).localeCompare(String(vb));
+    return dir==="desc"?-cmp:cmp;
+  });
+  for(let i=0;i<rows.length;i++){
+    const r=r1+i;
+    for(let c=c1;c<=c2;c++) delete sh.cells[cellKey(r,c)];
+    for(const c in rows[i]) sh.cells[cellKey(r,+c)]=rows[i][c];
+  }
+  recomputeSheet(sh); renderGrid(); renderCards(); scheduleSave();
+  toast("Sorted "+(dir==="desc"?"Z to A":"A to Z")+" by column "+colToLetter(sortCol)+".");
+}
+function applyFilter(col,value){
+  const sh=activeSheet();
+  sh.filters=sh.filters.filter(f=>f.col!==col);
+  if(value!=null&&value!=="") sh.filters.push({col:col,value:value});
+  recomputeFilterVisibility(sh);
+  renderGrid(); renderCards(); updateStatusBar(); scheduleSave();
+}
+function recomputeFilterVisibility(sh){
+  sh.hiddenRows={};
+  if(!sh.filters.length) return;
+  for(let r=0;r<sh.rows;r++){
+    for(const f of sh.filters){
+      const cell=getCell(sh,r,f.col);
+      const dv=cell?displayValue(sh,cell):"";
+      if(dv!==f.value){ sh.hiddenRows[r]=true; break; }
+    }
+  }
+}
+function clearFilters(){
+  const sh=activeSheet();
+  if(!sh.filters.length){ toast("No filters on this sheet."); return; }
+  pushUndo();
+  sh.filters=[]; sh.hiddenRows={};
+  renderGrid(); renderCards(); updateStatusBar(); scheduleSave();
+  toast("Filters cleared.");
+}
+function uniqueColumnValues(col){
+  const sh=activeSheet();
+  const seen={}, out=[];
+  for(let r=0;r<sh.rows;r++){
+    const cell=getCell(sh,r,col);
+    const dv=cell?displayValue(sh,cell):"";
+    if(dv===""||seen[dv]) continue;
+    seen[dv]=1; out.push(dv);
+    if(out.length>=500) break;
+  }
+  return out;
+}
+
+/* ---------------- merge ---------------- */
+function mergeSelection(){
+  const sh=activeSheet();
+  const r1=Math.min(sel.r1,sel.r2), r2=Math.max(sel.r1,sel.r2);
+  const c1=Math.min(sel.c1,sel.c2), c2=Math.max(sel.c1,sel.c2);
+  if(r1===r2&&c1===c2){ toast("Select more than one cell to merge."); return; }
+  pushUndo();
+  sh.merged=sh.merged.filter(m=>!(m.r1<=r2&&m.r2>=r1&&m.c1<=c2&&m.c2>=c1));
+  sh.merged.push({r1:r1,r2:r2,c1:c1,c2:c2});
+  renderGrid(); scheduleSave();
+  toast("Merged "+a1(r1,c1)+":"+a1(r2,c2)+".");
+}
+function unmergeSelection(){
+  const sh=activeSheet();
+  const r1=Math.min(sel.r1,sel.r2), r2=Math.max(sel.r1,sel.r2);
+  const c1=Math.min(sel.c1,sel.c2), c2=Math.max(sel.c1,sel.c2);
+  const before=sh.merged.length;
+  pushUndo();
+  sh.merged=sh.merged.filter(m=>!(m.r1<=r2&&m.r2>=r1&&m.c1<=c2&&m.c2>=c1));
+  if(sh.merged.length===before){ toast("No merged cells in the selection."); return; }
+  renderGrid(); scheduleSave();
+  toast("Unmerged.");
+}
+
+/* ---------------- find ---------------- */
+let lastFind={q:"",r:-1,c:-1};
+function findNext(q,fromCurrent){
+  const sh=activeSheet();
+  const needle=String(q).toLowerCase();
+  let startR=sel.r, startC=sel.c+1;
+  if(!fromCurrent){ startR=0; startC=0; }
+  for(let pass=0;pass<2;pass++){
+    for(let r=startR;r<sh.rows;r++){
+      for(let c=(r===startR?startC:0);c<sh.cols;c++){
+        const cell=getCell(sh,r,c);
+        if(!cell) continue;
+        const hay=(cell.f?cell.f+" ":"")+displayValue(sh,cell);
+        if(String(hay).toLowerCase().indexOf(needle)>=0){
+          setSelection(r,c,false);
+          const td=document.querySelector('#grid td[data-r="'+r+'"][data-c="'+c+'"]');
+          if(td&&td.scrollIntoView) td.scrollIntoView({block:"nearest",inline:"nearest"});
+          lastFind={q:q,r:r,c:c};
+          return true;
+        }
+      }
+    }
+    startR=0; startC=0;
+  }
+  return false;
+}
+
+/* ---------------- copy / paste ---------------- */
+function selectionTsv(){
+  const sh=activeSheet();
+  const r1=Math.min(sel.r1,sel.r2), r2=Math.max(sel.r1,sel.r2);
+  const c1=Math.min(sel.c1,sel.c2), c2=Math.max(sel.c1,sel.c2);
+  const lines=[];
+  for(let r=r1;r<=r2;r++){
+    const parts=[];
+    for(let c=c1;c<=c2;c++){
+      const cell=getCell(sh,r,c);
+      parts.push(cell? displayValue(sh,cell) : "");
+    }
+    lines.push(parts.join("\t"));
+  }
+  return lines.join("\n");
+}
+function copySelection(){
+  const tsv=selectionTsv();
+  const done=()=>toast("Copied "+(Math.abs(sel.r2-sel.r1)+1)+" row(s).");
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(tsv).then(done).catch(()=>{ fallbackCopy(tsv); done(); });
+  } else { fallbackCopy(tsv); done(); }
+}
+function fallbackCopy(text){
+  const ta=document.createElement("textarea");
+  ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand("copy"); }catch(e){}
+  document.body.removeChild(ta);
+}
+function pasteTsv(text,atR,atC){
+  const sh=activeSheet();
+  const rows=parseTsv(text);
+  if(!rows.length) return;
+  pushUndo();
+  for(let i=0;i<rows.length;i++){
+    for(let j=0;j<rows[i].length;j++){
+      const r=atR+i, c=atC+j;
+      if(r>=sh.rows) sh.rows=Math.min(1000,r+1);
+      if(c>=sh.cols) sh.cols=Math.min(702,c+1);
+      setCellRaw(sh,r,c,rows[i][j]);
+    }
+  }
+  recomputeSheet(sh); renderGrid(); renderCards(); updateFormulaBar(); scheduleSave();
+  toast("Pasted "+rows.length+" row(s).");
+}
+
+/* ---------------- file download ---------------- */
+// v1.1: in the Tauri desktop shell, WebView2 (Windows) silently drops the
+// anchor download, so export goes through the shell's native Save dialog
+// instead. In a plain browser and the webapp, window.__TAURI__ is absent
+// and the anchor path runs unchanged. Async so the dialog/invoke can be
+// awaited; callers await it and toast only on success. Returns true if a
+// download was started, false if it was cancelled or failed.
+async function downloadBytes(bytes,filename,mime){
+  const data=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes||[]);
+  try{
+    if(window.__TAURI__ && window.__TAURI__.dialog && window.__TAURI__.core){
+      const ext=(String(filename).split(".").pop()||"").toLowerCase();
+      const path=await window.__TAURI__.dialog.save({ defaultPath: filename, filters:[{name:"Pocket Sheets export", extensions:[ext]}] });
+      if(!path) return false;
+      // save_bytes_file is the shell's binary save command; if the invoke
+      // fails we fall through to the anchor path below (which works in a
+      // plain browser, the PWA, and macOS Tauri).
+      try{
+        await window.__TAURI__.core.invoke("save_bytes_file",{path, contents: bytesToBase64(data)});
+        return true;
+      }catch(e2){ /* fall through to the anchor path */ }
+    }
+  }catch(e){ /* fall through to the anchor path */ }
+  const blob=new Blob([data],{type:mime||"application/octet-stream"});
+  if(typeof URL!=="undefined"&&URL.createObjectURL){
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ document.body.removeChild(a); try{ URL.revokeObjectURL(url); }catch(e){} },500);
+    return true;
+  } else {
+    toast("Download is not available in this view — use the File menu in a browser.");
+    return false;
+  }
+}
+async function downloadText(text,filename,mime){ return downloadBytes(utf8Bytes(text),filename,mime||"text/plain"); }
+
+/* ---------------- CSV import / export ---------------- */
+function exportCsvText(){
+  const sh=activeSheet();
+  let maxR=-1, maxC=-1;
+  for(const k in sh.cells){
+    const p=k.split(","); const r=+p[0], c=+p[1];
+    if(r>maxR) maxR=r; if(c>maxC) maxC=c;
+  }
+  if(maxR<0) return "";
+  const lines=[];
+  for(let r=0;r<=maxR;r++){
+    const parts=[];
+    for(let c=0;c<=maxC;c++){
+      const cell=getCell(sh,r,c);
+      parts.push(csvEscape(cell? displayValue(sh,cell) : ""));
+    }
+    lines.push(parts.join(","));
+  }
+  return lines.join("\r\n")+"\r\n";
+}
+function importRowsIntoSheet(rows, targetSheet){
+  const sh=targetSheet||activeSheet();
+  pushUndo();
+  const needRows=Math.max(sh.rows, rows.length);
+  const needCols=Math.max(sh.cols, rows.reduce((m,r)=>Math.max(m,r.length),0));
+  sh.rows=Math.min(1000,needRows); sh.cols=Math.min(702,needCols);
+  for(let r=0;r<rows.length;r++)
+    for(let c=0;c<rows[r].length;c++)
+      setCellRaw(sh,r,c,rows[r][c]);
+  recomputeSheet(sh); renderGrid(); renderCards(); updateFormulaBar(); scheduleSave();
+  return rows.length;
+}
+
+/* ---------------- XLSX import ---------------- */
+function parseSharedStrings(xml){
+  const out=[];
+  const re=/<si>([\s\S]*?)<\/si>/g; let m;
+  while((m=re.exec(xml))){
+    const inner=m[1];
+    const texts=[]; const tr=/<t[^>]*>([\s\S]*?)<\/t>/g; let t;
+    while((t=tr.exec(inner))) texts.push(xmlDecode(t[1]));
+    out.push(texts.join(""));
+  }
+  return out;
+}
+function parseStylesNumFmts(xml){
+  // returns array: xf index -> {numFmtId, fmtCode}
+  const numFmts={};
+  const nfRe=/<numFmt[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g; let m;
+  while((m=nfRe.exec(xml))) numFmts[+m[1]]=m[2];
+  const xfs=[];
+  const xfsBlock=/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml);
+  if(xfsBlock){
+    const xfRe=/<xf\b([^>]*?)\/?>/g; let x;
+    while((x=xfRe.exec(xfsBlock[1]))){
+      const id=xmlAttr(x[1],"numFmtId");
+      xfs.push({numFmtId: id==null?0:+id, fmtCode: id!=null&&numFmts[+id]?numFmts[+id]:null});
+    }
+  }
+  return xfs;
+}
+function xlsxDateFromValue(v,styleInfo){
+  if(typeof v!=="number") return null;
+  if(!styleInfo) return null;
+  const isDate = isDateFmtId(styleInfo.numFmtId) ||
+    (styleInfo.fmtCode && /y{2,4}|m{1,2}|d{1,2}/.test(styleInfo.fmtCode) && !/h|s/.test(styleInfo.fmtCode));
+  if(!isDate) return null;
+  if(v<0||v>2958465) return null;
+  return serialToDate(v);
+}
+function importXlsxBytes(bytes){
+  const entries=readZip(bytes);
+  const byName={}; entries.forEach(e=>{ byName[e.name]=e; });
+  if(!byName["xl/workbook.xml"]) throw new Error("Not a valid .xlsx file (no xl/workbook.xml).");
+  const wbXml=utf8Decode(byName["xl/workbook.xml"].data);
+  const shared=byName["xl/sharedStrings.xml"]? parseSharedStrings(utf8Decode(byName["xl/sharedStrings.xml"].data)) : [];
+  const xfs=byName["xl/styles.xml"]? parseStylesNumFmts(utf8Decode(byName["xl/styles.xml"].data)) : [];
+  // sheet name -> target file
+  const relsXml=byName["xl/_rels/workbook.xml.rels"]? utf8Decode(byName["xl/_rels/workbook.xml.rels"].data) : "";
+  const relMap={};
+  const relRe=/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g; let rm;
+  while((rm=relRe.exec(relsXml))) relMap[rm[1]]=rm[2];
+  const sheetRe=/<sheet[^>]*name="([^"]+)"[^>]*r:id="([^"]+)"[^>]*\/?>/g; let sm;
+  const sheetDefs=[];
+  while((sm=sheetRe.exec(wbXml))){
+    let target=relMap[sm[2]]||"";
+    if(target.indexOf("xl/")!==0) target="xl/"+target.replace(/^\//,"");
+    sheetDefs.push({name:xmlDecode(sm[1]), target:target});
+  }
+  if(!sheetDefs.length) throw new Error("No sheets found in this .xlsx file.");
+  const imported=[];
+  for(const def of sheetDefs){
+    const entry=byName[def.target];
+    if(!entry) continue;
+    const sh=newSheet(def.name);
+    const xml=utf8Decode(entry.data);
+    // column widths
+    const colsBlock=/<cols>([\s\S]*?)<\/cols>/.exec(xml);
+    if(colsBlock){
+      const colRe=/<col\b([^>]*?)\/?>/g; let cm;
+      while((cm=colRe.exec(colsBlock[1]))){
+        const min=+(xmlAttr(cm[1],"min")||1), max=+(xmlAttr(cm[1],"max")||min), w=parseFloat(xmlAttr(cm[1],"width")||"0");
+        if(w>0) for(let c=min-1;c<max;c++) sh.colWidths[c]=Math.round(w*7.2);
+      }
+    }
+    const rowRe=/<row\b([^>]*)>([\s\S]*?)<\/row>|<row\b([^>]*?)\/>/g; let rowM;
+    while((rowM=rowRe.exec(xml))){
+      const rowAttrs=rowM[1]||rowM[3]||"";
+      const inner=rowM[2]||"";
+      const rAttr=+(xmlAttr(rowAttrs,"r")||0);
+      const ht=parseFloat(xmlAttr(rowAttrs,"ht")||"0");
+      if(rAttr>0&&ht>0) sh.rowHeights[rAttr-1]=Math.round(ht);
+      const cellRe=/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g; let cm;
+      while((cm=cellRe.exec(inner))){
+        const attrs=cm[1], body=cm[2]||"";
+        const ref=xmlAttr(attrs,"r"); if(!ref) continue;
+        const pos=parseRef(ref); if(!pos) continue;
+        const t=xmlAttr(attrs,"t");
+        const sIdx=xmlAttr(attrs,"s");
+        const styleInfo=(sIdx!=null&&xfs[+sIdx])?xfs[+sIdx]:null;
+        const fM=/<f[^>]*>([\s\S]*?)<\/f>/.exec(body);
+        const vM=/<v>([\s\S]*?)<\/v>/.exec(body);
+        const isM=/<is>([\s\S]*?)<\/is>/.exec(body);
+        let value=null, formula=null;
+        if(fM) formula="="+xmlDecode(fM[1]);
+        if(t==="s"){
+          const idx=vM?+vM[1]:-1;
+          value=(idx>=0&&idx<shared.length)?shared[idx]:"";
+        } else if(t==="inlineStr"||isM){
+          const tm=/<t[^>]*>([\s\S]*?)<\/t>/.exec(isM?isM[1]:body);
+          value=tm?xmlDecode(tm[1]):"";
+        } else if(t==="b"){
+          value=vM?(vM[1]==="1"||vM[1].toLowerCase()==="true"):false;
+        } else if(t==="e"){
+          value=vM?("#"+vM[1]):"#VALUE!";
+        } else if(t==="str"){
+          value=vM?xmlDecode(vM[1]):"";
+        } else {
+          if(vM){
+            const num=parseFloat(vM[1]);
+            if(!isNaN(num)){
+              const asDate=xlsxDateFromValue(num,styleInfo);
+              if(asDate!=null){ value=asDate; }
+              else value=num;
+            } else value=vM[1];
+          }
+        }
+        if(value==null&&formula==null) continue;
+        const key=cellKey(pos.r,pos.c);
+        if(formula){
+          sh.cells[key]={v:(typeof value==="number"?value:0), f:formula, s:null};
+          if(typeof value==="string"&&value!=="") sh.cells[key].v=value;
+        } else {
+          sh.cells[key]={v:value, f:null, s:null};
+        }
+        if(pos.r>=sh.rows) sh.rows=Math.min(1000,pos.r+1);
+        if(pos.c>=sh.cols) sh.cols=Math.min(702,pos.c+1);
+      }
+    }
+    recomputeSheet(sh);
+    imported.push(sh);
+  }
+  if(!imported.length) throw new Error("No worksheet data could be read from this .xlsx file.");
+  return imported;
+}
+
+/* ---------------- XLSX export ---------------- */
+function xlsxEscapeAttr(s){ return xmlEncode(s); }
+function buildXlsxBytes(){
+  // collect shared strings and per-sheet style usage
+  const strings=[]; const strIndex={};
+  const getStrIdx=(s)=>{
+    if(strIndex[s]!=null) return strIndex[s];
+    const i=strings.length; strings.push(s); strIndex[s]=i; return i;
+  };
+  // styles: fonts, fills, cellXfs
+  const fonts=[{b:false,i:false,color:null}]; const fontIndex={"|":0};
+  const fills=[{fg:null},{fg:"FFD9D9D9"}]; const fillIndex={"|":0,"FFD9D9D9":1};
+  const xfs=[{numFmtId:0,fontId:0,fillId:0,borderId:0}]; const xfIndex={"0|0|0|0":0};
+  const DATE_FMT_ID=165;
+  let strRefCount=0;
+  function styleKey(cell){
+    const s=cell&&cell.s;
+    if(!s) return {numFmtId:0,fontId:0,fillId:0,borderId:0};
+    let fontId=0, fillId=0, numFmtId=0, borderId=0;
+    const fKey=(s.b?1:0)+"|"+(s.i?1:0)+"|"+(s.color||"");
+    if(fontIndex[fKey]==null){
+      fontIndex[fKey]=fonts.length;
+      fonts.push({b:!!s.b,i:!!s.i,color:s.color?s.color.replace("#","FF"):null});
+    }
+    fontId=fontIndex[fKey];
+    if(s.fill){
+      const fg="FF"+s.fill.replace("#","").toUpperCase();
+      if(fillIndex[fg]==null){ fillIndex[fg]=fills.length; fills.push({fg:fg}); }
+      fillId=fillIndex[fg];
+    }
+    if(s.border) borderId=1;
+    if(s.fmt==="date") numFmtId=DATE_FMT_ID;
+    else if(s.fmt==="currency") numFmtId=164;
+    else if(s.fmt==="percent") numFmtId=9;
+    else if(s.fmt==="number") numFmtId=2;
+    const k=numFmtId+"|"+fontId+"|"+fillId+"|"+borderId;
+    if(xfIndex[k]==null){ xfIndex[k]=xfs.length; xfs.push({numFmtId:numFmtId,fontId:fontId,fillId:fillId,borderId:borderId}); }
+    return {numFmtId:numFmtId,fontId:fontId,fillId:fillId,borderId:borderId,xf:xfIndex[k]};
+  }
+  // first pass: register all strings and styles
+  state.sheets.forEach(sh=>{
+    for(const k in sh.cells){
+      const cell=sh.cells[k];
+      if(cell.f){ /* formula: cached value may be a string */ }
+      else if(typeof cell.v==="string"&&cell.v!==""){ getStrIdx(cell.v); strRefCount++; }
+      styleKey(cell);
+    }
+  });
+  const stylesXml=
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+    '<numFmts count="2"><numFmt numFmtId="164" formatCode="\\$#,##0.00"/><numFmt numFmtId="165" formatCode="yyyy-mm-dd"/></numFmts>'+
+    '<fonts count="'+fonts.length+'">'+fonts.map(f=>{
+      let x="<font><sz val=\"11\"/><name val=\"Calibri\"/>";
+      if(f.b) x+="<b/>"; if(f.i) x+="<i/>";
+      if(f.color) x+="<color rgb=\""+f.color.toUpperCase()+"\"/>";
+      return x+"</font>";
+    }).join("")+'</fonts>'+
+    '<fills count="'+fills.length+'">'+fills.map((f,i)=>{
+      if(i===0) return "<fill><patternFill patternType=\"none\"/></fill>";
+      if(i===1) return "<fill><patternFill patternType=\"gray125\"/></fill>";
+      return "<fill><patternFill patternType=\"solid\"><fgColor rgb=\""+f.fg+"\"/><bgColor indexed=\"64\"/></patternFill></fill>";
+    }).join("")+'</fills>'+
+    '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'+
+    '<border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border></borders>'+
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+    '<cellXfs count="'+xfs.length+'">'+xfs.map(x=>'<xf numFmtId="'+x.numFmtId+'" fontId="'+x.fontId+'" fillId="'+x.fillId+'" borderId="'+(x.borderId||0)+'" xfId="0"/>').join("")+'</cellXfs>'+
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  const sharedXml=
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+
+    '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="'+strRefCount+'" uniqueCount="'+strings.length+'">'+
+    strings.map(s=>"<si><t>"+xmlEncode(s)+"</t></si>").join("")+"</sst>";
+  const sheetXmls=state.sheets.map((sh,si)=>{
+    let maxR=-1,maxC=-1;
+    for(const k in sh.cells){ const p=k.split(","); if(+p[0]>maxR)maxR=+p[0]; if(+p[1]>maxC)maxC=+p[1]; }
+    const dim = maxR>=0 ? "A1:"+a1(maxR,maxC) : "A1";
+    let colsXml="";
+    const widthKeys=Object.keys(sh.colWidths);
+    if(widthKeys.length){
+      colsXml="<cols>"+widthKeys.map(k=>'<col min="'+(+k+1)+'" max="'+(+k+1)+'" width="'+(sh.colWidths[k]/7.2).toFixed(2)+'" customWidth="1"/>').join("")+"</cols>";
+    }
+    const rowsByR={};
+    for(const k in sh.cells){ const p=k.split(","); const r=+p[0]; (rowsByR[r]=rowsByR[r]||[]).push({c:+p[1],cell:sh.cells[k]}); }
+    let rowsXml="";
+    const rowNums=Object.keys(rowsByR).map(Number).sort((a,b)=>a-b);
+    for(const r of rowNums){
+      const cells=rowsByR[r].sort((a,b)=>a.c-b.c);
+      let rowXml='<row r="'+(r+1)+'"';
+      if(sh.rowHeights[r]) rowXml+=' ht="'+sh.rowHeights[r]+'" customHeight="1"';
+      rowXml+=">";
+      for(const item of cells){
+        const c=item.c, cell=item.cell, ref=a1(r,c);
+        const st=styleKey(cell);
+        const sAttr=st.xf?(' s="'+st.xf+'"'):"";
+        if(cell.f){
+          const fv=cell.v;
+          if(typeof fv==="number"||isErr(fv)||fv===""){
+            rowXml+='<c r="'+ref+'"'+sAttr+'><f>'+xmlEncode(cell.f.slice(1))+'</f>'+(typeof fv==="number"?'<v>'+fv+'</v>':"")+'</c>';
+          } else {
+            rowXml+='<c r="'+ref+'"'+sAttr+' t="str"><f>'+xmlEncode(cell.f.slice(1))+'</f><v>'+xmlEncode(fv)+'</v></c>';
+          }
+        } else if(typeof cell.v==="number"){
+          rowXml+='<c r="'+ref+'"'+sAttr+'><v>'+cell.v+'</v></c>';
+        } else if(typeof cell.v==="boolean"){
+          rowXml+='<c r="'+ref+'"'+sAttr+' t="b"><v>'+(cell.v?1:0)+'</v></c>';
+        } else if(typeof cell.v==="string"&&cell.v!==""){
+          if(cell.s&&cell.s.fmt==="date"){
+            const serial=dateToSerial(+cell.v.slice(0,4),+cell.v.slice(5,7),+cell.v.slice(8,10));
+            rowXml+='<c r="'+ref+'"'+sAttr+'><v>'+serial+'</v></c>';
+          } else {
+            rowXml+='<c r="'+ref+'"'+sAttr+' t="s"><v>'+getStrIdx(cell.v)+'</v></c>';
+          }
+        }
+      }
+      rowXml+="</row>";
+      rowsXml+=rowXml;
+    }
+    let mergeXml="";
+    if(sh.merged.length){
+      mergeXml='<mergeCells count="'+sh.merged.length+'">'+sh.merged.map(m=>'<mergeCell ref="'+a1(m.r1,m.c1)+':'+a1(m.r2,m.c2)+'"/>').join("")+'</mergeCells>';
+    }
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+      '<dimension ref="'+dim+'"/>'+colsXml+'<sheetViews><sheetView workbookViewId="0"/></sheetViews>'+
+      '<sheetFormatPr defaultRowHeight="15"/>'+
+      '<sheetData>'+rowsXml+'</sheetData>'+mergeXml+'</worksheet>';
+  });
+  const workbookXml=
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+    '<sheets>'+state.sheets.map((sh,i)=>'<sheet name="'+xlsxEscapeAttr(sh.name)+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>').join("")+'</sheets></workbook>';
+  const relsXml=
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    state.sheets.map((sh,i)=>'<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>').join("")+
+    '<Relationship Id="rId'+(state.sheets.length+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>'+
+    '<Relationship Id="rId'+(state.sheets.length+2)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
+    '</Relationships>';
+  const contentTypes=
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+    '<Default Extension="xml" ContentType="application/xml"/>'+
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+
+    state.sheets.map((sh,i)=>'<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join("")+
+    '<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>'+
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+
+    '</Types>';
+  const rootRels=
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  const entries=[
+    {name:"[Content_Types].xml", data:utf8Bytes(contentTypes)},
+    {name:"_rels/.rels", data:utf8Bytes(rootRels)},
+    {name:"xl/workbook.xml", data:utf8Bytes(workbookXml)},
+    {name:"xl/_rels/workbook.xml.rels", data:utf8Bytes(relsXml)},
+    {name:"xl/styles.xml", data:utf8Bytes(stylesXml)},
+    {name:"xl/sharedStrings.xml", data:utf8Bytes(sharedXml)}
+  ];
+  sheetXmls.forEach((xml,i)=>entries.push({name:"xl/worksheets/sheet"+(i+1)+".xml", data:utf8Bytes(xml)}));
+  return writeZip(entries);
+}
+
+/* ---------------- Weave (kind: sheets) ---------------- */
+function exportWeaveText(){
+  const lines=["# weave/1","---","workbook: "+state.name,"kind: sheets","created: "+(state.created||new Date().toISOString()),"---",""];
+  for(const sh of state.sheets){
+    lines.push("# Sheet: "+sh.name);
+    const widths=Object.keys(sh.colWidths);
+    if(widths.length) lines.push("cols: "+widthKeys(sh));
+    lines.push("---");
+    let maxR=-1,maxC=-1;
+    for(const k in sh.cells){ const p=k.split(","); if(+p[0]>maxR)maxR=+p[0]; if(+p[1]>maxC)maxC=+p[1]; }
+    for(let r=0;r<=maxR;r++){
+      const parts=[];
+      for(let c=0;c<=maxC;c++){
+        const cell=getCell(sh,r,c);
+        if(!cell){ parts.push(""); continue; }
+        let v = cell.f? cell.f : (cell.v==null?"":String(cell.v));
+        v=v.replace(/\\/g,"\\\\").replace(/\t/g,"\\t").replace(/\n/g,"\\n");
+        parts.push(v);
+      }
+      while(parts.length&&parts[parts.length-1]==="") parts.pop();
+      lines.push(parts.join("\t"));
+    }
+    // styles block
+    const styleLines=[];
+    for(const k in sh.cells){
+      const cell=sh.cells[k];
+      if(cell&&cell.s&&Object.keys(cell.s).length){
+        const p=k.split(",");
+        styleLines.push(a1(+p[0],+p[1])+": "+JSON.stringify(cell.s));
+      }
+    }
+    if(styleLines.length){ lines.push("","## Styles"); lines.push.apply(lines,styleLines); }
+    if(sh.merged.length){
+      lines.push("","## Merged");
+      sh.merged.forEach(m=>lines.push(a1(m.r1,m.c1)+":"+a1(m.r2,m.c2)));
+    }
+    lines.push("","---","");
+  }
+  lines.push("## History");
+  lines.push(new Date().toISOString()+" export \""+state.name+"\"");
+  return lines.join("\n")+"\n";
+}
+function widthKeys(sh){
+  return Object.keys(sh.colWidths).map(k=>colToLetter(+k)+"="+sh.colWidths[k]).join(",");
+}
+function importWeaveText(text){
+  const raw=String(text||"").replace(/\r\n/g,"\n").split("\n");
+  if(!raw.length||raw[0].trim()!=="# weave/1") throw new Error("Not a .weave file (missing '# weave/1').");
+  let i=1, wbName="Imported workbook", kind=null;
+  if(raw[i]==="---"){
+    i++;
+    while(i<raw.length&&raw[i]!=="---"){
+      const m=/^([^:]+):\s*(.*)$/.exec(raw[i]);
+      if(m){
+        if(m[1].trim()==="workbook") wbName=m[2].trim();
+        if(m[1].trim()==="kind") kind=m[2].trim();
+      }
+      i++;
+    }
+    i++; // skip closing ---
+  }
+  if(kind&&kind!=="sheets") throw new Error("This .weave file is kind '"+kind+"', not sheets.");
+  const sheets=[];
+  let cur=null, mode="cells";
+  const unesc=(s)=>s.replace(/\\n/g,"\n").replace(/\\t/g,"\t").replace(/\\\\/g,"\\");
+  for(;i<raw.length;i++){
+    const line=raw[i];
+    const sm=/^# Sheet:\s*(.*)$/.exec(line);
+    if(sm){
+      if(cur) sheets.push(cur);
+      cur={sheet:newSheet(sm[1].trim()||"Sheet"), rows:[]};
+      mode="cells";
+      continue;
+    }
+    if(line==="## Styles"){ mode="styles"; continue; }
+    if(line==="## Merged"){ mode="merged"; continue; }
+    if(line==="## History"){ mode="history"; continue; }
+    if(line==="---"){ if(cur&&mode==="cells") mode="cells"; continue; }
+    if(!cur) continue;
+    if(mode==="cells"){
+      if(line.trim()==="") continue;
+      if(/^cols:\s*/.test(line)){
+        const rest=line.replace(/^cols:\s*/,"");
+        rest.split(",").forEach(pair=>{
+          const m=/^([A-Za-z]+)=(\d+)$/.exec(pair.trim());
+          if(m) cur.sheet.colWidths[letterToCol(m[1])]=+m[2];
+        });
+        continue;
+      }
+      cur.rows.push(line.split("\t").map(unesc));
+    } else if(mode==="styles"){
+      const m=/^([A-Za-z]+[0-9]+):\s*(\{.*\})$/.exec(line.trim());
+      if(m){
+        const pos=parseRef(m[1]);
+        if(pos){
+          try{
+            const st=JSON.parse(m[2]);
+            const key=cellKey(pos.r,pos.c);
+            if(!cur.sheet.cells[key]) cur.sheet.cells[key]={v:"",f:null,s:{}};
+            cur.sheet.cells[key].s=st;
+          }catch(e){}
+        }
+      }
+    } else if(mode==="merged"){
+      const m=/^([A-Za-z]+[0-9]+):([A-Za-z]+[0-9]+)$/.exec(line.trim());
+      if(m){
+        const a=parseRef(m[1]), b=parseRef(m[2]);
+        if(a&&b) cur.sheet.merged.push({r1:Math.min(a.r,b.r),r2:Math.max(a.r,b.r),c1:Math.min(a.c,b.c),c2:Math.max(a.c,b.c)});
+      }
+    }
+  }
+  if(cur) sheets.push(cur);
+  if(!sheets.length) throw new Error("No sheets found in this .weave file.");
+  for(const item of sheets){
+    const sh=item.sheet;
+    item.rows.forEach((row,r)=>{
+      row.forEach((val,c)=>{
+        if(val==="" ) return;
+        setCellRaw(sh,r,c,val);
+      });
+    });
+    sh.rows=Math.max(DEFAULT_ROWS, item.rows.length);
+    sh.cols=Math.max(DEFAULT_COLS, item.rows.reduce((m,row)=>Math.max(m,row.length),0));
+    recomputeSheet(sh);
+  }
+  return {name:wbName, sheets:sheets.map(s=>s.sheet)};
+}
+
+/* ---------------- modal dialogs ---------------- */
+let modalOnClose=null;
+function openModal(html){
+  const ov=$("#modalOverlay"), m=$("#modal");
+  m.innerHTML=html;
+  ov.classList.add("on");
+  const first=m.querySelector("input,select,textarea,button");
+  if(first) first.focus();
+}
+function closeModal(){
+  $("#modalOverlay").classList.remove("on");
+  $("#modal").innerHTML="";
+  if(modalOnClose){ const f=modalOnClose; modalOnClose=null; f(); }
+}
+function modalShell(title,bodyHtml,actionsHtml){
+  return "<h2>"+esc(title)+"</h2>"+bodyHtml+'<div class="modal-actions">'+actionsHtml+"</div>";
+}
+function showHelp(){
+  openModal(modalShell("Pocket Sheets — Help",
+    "<p><b>Pocket Sheets</b> is a spreadsheet that lives entirely on your device. No account, no cloud, no subscription. Your work saves automatically and is still here when you come back.</p>"+
+    "<h3>Basics</h3>"+
+    "<table class='help-table'>"+
+    "<tr><td>Select a cell</td><td>Click it. The name box (top left, above the grid) shows its address, like A1.</td></tr>"+
+    "<tr><td>Type</td><td>Just start typing. <kbd>Enter</kbd> saves and moves down, <kbd>Tab</kbd> moves right, arrow keys move around. <kbd>Esc</kbd> cancels an edit.</td></tr>"+
+    "<tr><td>Edit</td><td>Double-click a cell, or press <kbd>F2</kbd>.</td></tr>"+
+    "<tr><td>Copy &amp; paste</td><td><kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> copy and paste cells. You can paste from Excel, Google Sheets, or any table.</td></tr>"+
+    "<tr><td>Undo / Redo</td><td><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd>, or the Undo and Redo buttons.</td></tr>"+
+    "<tr><td>Resize a column</td><td>Drag the right edge of a column letter.</td></tr>"+
+    "<tr><td>Rename a sheet</td><td>Double-click its tab. Right-click a tab to delete it.</td></tr>"+
+    "</table>"+
+    "<h3>Formulas</h3>"+
+    "<p>Start with <code>=</code>. Examples: <code>=SUM(A1:A5)</code>, <code>=AVERAGE(B2:B9)</code>, <code>=B2*C2</code>, <code>=IF(A1&gt;10,\"big\",\"small\")</code>, <code>=VLOOKUP(\"Apples\",A2:D10,4)</code>.</p>"+
+    "<table class='help-table'>"+
+    "<tr><td>SUM, AVERAGE, COUNT, COUNTA, MIN, MAX</td><td>Work on numbers or ranges, e.g. <code>=SUM(A1:A10)</code>.</td></tr>"+
+    "<tr><td>IF</td><td><code>=IF(condition, value-if-true, value-if-false)</code></td></tr>"+
+    "<tr><td>CONCATENATE, &amp;</td><td>Join text: <code>=CONCATENATE(A1,\" \",B1)</code> or <code>=A1&amp;\" \"&amp;B1</code>.</td></tr>"+
+    "<tr><td>VLOOKUP</td><td><code>=VLOOKUP(what, range, column, exact?)</code> — exact match by default.</td></tr>"+
+    "<tr><td>COUNTIF, SUMIF</td><td><code>=COUNTIF(A1:A10,\"&gt;5\")</code>, <code>=SUMIF(A1:A10,\"Apples\",B1:B10)</code></td></tr>"+
+    "<tr><td>ROUND, ABS, UPPER, LOWER, TRIM, LEN</td><td>As in Excel.</td></tr>"+
+    "<tr><td>TODAY, NOW, IFERROR</td><td>Current date/time; <code>=IFERROR(A1/B1,0)</code> hides errors.</td></tr>"+
+    "<tr><td>Other sheets</td><td>Reference another sheet: <code>=Sheet2!A1</code> or <code>='My Sheet'!A1</code>.</td></tr>"+
+    "</table>"+
+    "<h3>Sort, filter, and views</h3>"+
+    "<p>Select rows, then <b>Sort A–Z</b> or <b>Sort Z–A</b> to sort by the first selected column. <b>Filter</b> hides rows that do not match a value in a column; <b>Clear filter</b> shows everything again. <b>Cards</b> (top, next to Grid) shows one card per row, using the first row as labels.</p>"+
+    "<h3>Files</h3>"+
+    "<p>Use the <b>File</b> button (top right) to import and export. <b>.xlsx</b> opens in Excel, Google Sheets, and LibreOffice. <b>.csv</b> is plain text tables. <b>.weave</b> is Pocket's own format — one plain-text file that keeps your whole workbook, including formulas, styles, and merged cells.</p>"+
+    "<h3>Privacy</h3>"+
+    "<p>Everything is stored on this device (IndexedDB, with a localStorage fallback). Nothing is uploaded anywhere.</p>",
+    '<button type="button" class="primary" onclick="closeModal()">Close</button>'));
+}
+function showAbout(){
+  openModal(modalShell("About Pocket Sheets",
+    "<p><b>Pocket Sheets v1.1</b> — a standalone, local-first spreadsheet. Part of the Pocket suite.</p>"+
+    "<p>Grid, formulas, multiple sheets, sorting, filtering, cards view, CSV / .xlsx / .weave import and export, and automatic saving on this device.</p>"+
+    "<p>Pastel Sky palette. No account, no cloud, no subscription. Your data never leaves your device.</p>"+
+    "<p style='color:var(--muted);font-size:12px'>v1.1 leaves out: charts, pivot tables, conditional formatting rules, and live collaboration (those need a server or a later version). Everything listed in Help is implemented.</p>",
+    '<button type="button" class="primary" onclick="closeModal()">Close</button>'));
+}
+function showStorage(){
+  let size=0, store=storeMode;
+  try{ size=(localStorage.getItem(LS_KEY)||"").length; }catch(e){}
+  const approx=(size/1024).toFixed(1)+" KB in localStorage";
+  openModal(modalShell("Storage",
+    "<p>Your workbook is saved on this device.</p>"+
+    "<table class='help-table'>"+
+    "<tr><td>Store</td><td>"+esc(store==="indexedDB"?"IndexedDB (primary)":"localStorage (fallback — IndexedDB unavailable)")+"</td></tr>"+
+    "<tr><td>Workbook</td><td>"+esc(state.name)+"</td></tr>"+
+    "<tr><td>Sheets</td><td>"+state.sheets.length+"</td></tr>"+
+    "<tr><td>Saved copy</td><td>"+esc(approx)+"</td></tr>"+
+    "</table>"+
+    "<p>Tip: export a <b>.weave</b> backup from the File menu before clearing storage. Clearing deletes the workbook on this device.</p>",
+    '<button type="button" onclick="exportBackup()">Export backup (.weave)</button>'+
+    '<button type="button" onclick="clearStorageConfirm()">Clear all storage…</button>'+
+    '<button type="button" class="primary" onclick="closeModal()">Close</button>'));
+}
+function clearStorageConfirm(){
+  openModal(modalShell("Clear all storage?",
+    "<p>This deletes the saved workbook on this device and starts fresh with the Welcome sheet. Export a backup first if you want to keep your work.</p>",
+    '<button type="button" onclick="doClearStorage()">Yes, clear it</button>'+
+    '<button type="button" class="primary" onclick="closeModal()">Cancel</button>'));
+}
+function doClearStorage(){
+  try{ localStorage.removeItem(LS_KEY); }catch(e){}
+  if(typeof indexedDB!=="undefined"){
+    try{ const req=indexedDB.deleteDatabase(DB_NAME); req.onsuccess=()=>{}; req.onerror=()=>{}; }catch(e){}
+  }
+  closeModal();
+  state=newWorkbook(); undoStack.length=0; redoStack.length=0;
+  sel={r:0,c:0,r1:0,c1:0,r2:0,c2:0};
+  renderAll(); scheduleSave(); toast("Storage cleared. Fresh workbook started.");
+}
+function showFind(){
+  openModal(modalShell("Find",
+    '<div class="row"><label for="findInput">Find text or a value</label><input id="findInput" type="text" placeholder="e.g. Apples"></div>'+
+    "<p style='color:var(--muted);font-size:12px'>Searches values and formulas, starting after the active cell. Press Find next to keep going.</p>",
+    '<button type="button" class="primary" id="findGo">Find next</button>'+
+    '<button type="button" onclick="closeModal()">Close</button>'));
+  const input=$("#findInput");
+  const go=()=>{
+    const q=input.value.trim();
+    if(!q){ toast("Type something to find."); return; }
+    if(!findNext(q, lastFind.q===q)){ toast("Not found: "+q); }
+  };
+  $("#findGo").onclick=go;
+  input.onkeydown=(e)=>{ if(e.key==="Enter"){ e.preventDefault(); go(); } };
+  input.focus();
+}
+function showFilter(){
+  const sh=activeSheet();
+  const col=Math.min(sel.c1,sel.c2);
+  const values=uniqueColumnValues(col);
+  const current=(sh.filters.find(f=>f.col===col)||{}).value||"";
+  openModal(modalShell("Filter column "+colToLetter(col),
+    '<div class="row"><label for="filterValue">Show only rows where column '+colToLetter(col)+' equals</label>'+
+    '<select id="filterValue"><option value="">(no filter)</option>'+
+    values.map(v=>'<option value="'+esc(v)+'"'+(v===current?' selected':"")+'>'+esc(v)+"</option>").join("")+
+    "</select></div>"+
+    "<p style='color:var(--muted);font-size:12px'>Filtering hides rows that do not match. It never deletes anything. Use Clear filter in the toolbar to show everything again.</p>",
+    '<button type="button" class="primary" id="filterGo">Apply filter</button>'+
+    '<button type="button" onclick="closeModal()">Cancel</button>'));
+  $("#filterGo").onclick=()=>{
+    const v=$("#filterValue").value;
+    closeModal();
+    applyFilter(col, v===""?null:v);
+    toast(v===""? "Filter removed for column "+colToLetter(col)+"." : "Filtered column "+colToLetter(col)+" to “"+v+"”.");
+  };
+}
+function showPasteCsv(){
+  openModal(modalShell("Paste CSV / TSV",
+    '<div class="row"><label for="pasteCsvText">Paste table data (comma- or tab-separated)</label>'+
+    '<textarea id="pasteCsvText" placeholder="Apples,2,3&#10;Bread,3.5,2"></textarea></div>'+
+    "<p style='color:var(--muted);font-size:12px'>Pastes into the active sheet starting at A1, replacing cells it covers. For a file instead, use File → Import .csv file.</p>",
+    '<button type="button" class="primary" id="pasteCsvGo">Paste into sheet</button>'+
+    '<button type="button" onclick="closeModal()">Cancel</button>'));
+  $("#pasteCsvGo").onclick=()=>{
+    const text=$("#pasteCsvText").value;
+    if(!text.trim()){ toast("Nothing to paste."); return; }
+    closeModal();
+    const rows = text.indexOf("\t")>=0 ? parseTsv(text) : parseCsv(text);
+    importRowsIntoSheet(rows);
+    toast("Pasted "+rows.length+" row(s).");
+  };
+}
+function renameSheetDialog(i){
+  const sh=state.sheets[i];
+  openModal(modalShell("Rename sheet",
+    '<div class="row"><label for="renameInput">Sheet name</label><input id="renameInput" type="text" value="'+esc(sh.name)+'"></div>',
+    '<button type="button" class="primary" id="renameGo">Rename</button>'+
+    '<button type="button" onclick="closeModal()">Cancel</button>'));
+  const input=$("#renameInput"); input.focus(); input.select();
+  const go=()=>{ if(renameSheet(i,input.value.trim())) closeModal(); };
+  $("#renameGo").onclick=go;
+  input.onkeydown=(e)=>{ if(e.key==="Enter"){ e.preventDefault(); go(); } };
+}
+function deleteSheetDialog(i){
+  const sh=state.sheets[i];
+  openModal(modalShell("Delete sheet?",
+    "<p>Delete the sheet <b>"+esc(sh.name)+"</b>? Its cells will be lost. You can undo this with Ctrl+Z.</p>",
+    '<button type="button" id="delSheetGo">Delete sheet</button>'+
+    '<button type="button" class="primary" onclick="closeModal()">Cancel</button>'));
+  $("#delSheetGo").onclick=()=>{ closeModal(); deleteSheet(i); };
+}
+async function exportBackup(){
+  closeModal();
+  const ok=await downloadText(exportWeaveText(), (state.name||"workbook").replace(/[\\/:*?"<>|]/g,"_")+".weave", "text/plain");
+  if(ok) toast("Backup exported.");
+}
+
+/* ---------------- file menu & file input ---------------- */
+let pendingImport=null; // "xlsx" | "csv" | "weave"
+function openFilePicker(accept,kind){
+  pendingImport=kind;
+  // v1.1: in the Tauri desktop shell the webview's <input type="file">
+  // picker does not deliver the selected file on macOS, so import goes
+  // through the shell's native Open dialog and the read commands instead.
+  // In a plain browser this branch is skipped and the file input runs.
+  if(window.__TAURI__ && window.__TAURI__.dialog && window.__TAURI__.core){ importViaTauri(kind); return; }
+  const fi=$("#fileInput");
+  fi.accept=accept; fi.value="";
+  fi.click();
+}
+// v1.1: Tauri native import. Reads the picked file through the shell's
+// read commands and hands the content to applyImport — the same processing
+// the browser file-input path uses.
+async function importViaTauri(kind){
+  try{
+    const dialog=window.__TAURI__.dialog, core=window.__TAURI__.core;
+    if(!dialog||!dialog.open||!core||!core.invoke) throw new Error("Tauri dialog unavailable");
+    const filters = kind==="xlsx"
+      ? [{name:"Excel workbook", extensions:["xlsx"]}]
+      : kind==="csv"
+      ? [{name:"CSV", extensions:["csv"]}]
+      : [{name:"Pocket Sheets workbook", extensions:["weave"]}];
+    const picked=await dialog.open({ multiple:false, filters });
+    if(!picked) return;
+    const path=Array.isArray(picked)?picked[0]:picked;
+    const name=path.split(/[\\/]/).pop()||"file";
+    if(kind==="xlsx"){
+      const b64=await core.invoke("read_bytes_file",{path});
+      applyImport(kind, name, base64ToBytes(b64));
+    }else{
+      const text=await core.invoke("read_text_file",{path});
+      applyImport(kind, name, text);
+    }
+  }catch(e){
+    toast("Import failed: "+(e&&e.message?e.message:e));
+  }
+}
+function handleFilePicked(file){
+  if(!file) return;
+  const kind=pendingImport; pendingImport=null;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      if(kind==="xlsx") applyImport(kind, file.name, new Uint8Array(reader.result));
+      else applyImport(kind, file.name, typeof reader.result==="string"?reader.result:utf8Decode(new Uint8Array(reader.result)));
+    }catch(e){
+      toast("Import failed: "+(e&&e.message?e.message:e));
+    }
+  };
+  reader.onerror=()=>toast("Could not read that file.");
+  if(kind==="xlsx") reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+}
+// Shared import processing: data is a Uint8Array for "xlsx", a string for
+// "csv" and "weave". Both the browser file-input path and the Tauri native
+// path feed through here.
+function applyImport(kind, name, data){
+  if(kind==="xlsx"){
+    const sheets=importXlsxBytes(data);
+    pushUndo();
+    state.sheets=sheets;
+    state.activeSheet=0;
+    state.name=name.replace(/\.xlsx$/i,"");
+    sel={r:0,c:0,r1:0,c1:0,r2:0,c2:0};
+    renderAll(); scheduleSave();
+    toast("Imported "+sheets.length+" sheet(s) from "+name+".");
+  } else if(kind==="csv"){
+    const rows=parseCsv(data);
+    importRowsIntoSheet(rows);
+    toast("Imported "+rows.length+" row(s) from "+name+".");
+  } else if(kind==="weave"){
+    const wb=importWeaveText(data);
+    pushUndo();
+    state.sheets=wb.sheets; state.name=wb.name; state.activeSheet=0;
+    sel={r:0,c:0,r1:0,c1:0,r2:0,c2:0};
+    renderAll(); scheduleSave();
+    toast("Imported workbook “"+wb.name+"” ("+wb.sheets.length+" sheet(s)).");
+  }
+}
+function wireFileMenu(){
+  const menu=$("#fileMenu");
+  $("#fileBtn").onclick=(e)=>{
+    e.stopPropagation();
+    menu.classList.toggle("on");
+  };
+  document.addEventListener("click",(e)=>{
+    if(!menu.contains(e.target)&&e.target.id!=="fileBtn") menu.classList.remove("on");
+  });
+  menu.querySelectorAll("button[data-act]").forEach(b=>{
+    b.onclick=async()=>{
+      menu.classList.remove("on");
+      const act=b.dataset.act;
+      const base=(state.name||"workbook").replace(/[\\/:*?"<>|]/g,"_");
+      if(act==="import-xlsx") openFilePicker(".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","xlsx");
+      else if(act==="import-csv-file") openFilePicker(".csv,text/csv","csv");
+      else if(act==="import-csv-paste") showPasteCsv();
+      else if(act==="import-weave") openFilePicker(".weave,text/plain","weave");
+      else if(act==="export-xlsx"){ if(await downloadBytes(buildXlsxBytes(), base+".xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) toast("Exported .xlsx"); }
+      else if(act==="export-csv"){ if(await downloadText(exportCsvText(), base+"-"+activeSheet().name+".csv", "text/csv")) toast("Exported .csv"); }
+      else if(act==="export-weave"){ if(await downloadText(exportWeaveText(), base+".weave", "text/plain")) toast("Exported .weave"); }
+      else if(act==="export-backup") exportBackup();
+      else if(act==="storage") showStorage();
+      else if(act==="about") showAbout();
+    };
+  });
+}
+
+/* ---------------- grid events ---------------- */
+function wireGrid(){
+  const table=$("#grid");
+  const wrap=$("#gridWrap");
+  table.addEventListener("mousedown",(e)=>{
+    const td=e.target.closest("td");
+    const th=e.target.closest("th");
+    if(th&&th.dataset.col!=null&&e.target===th){
+      // column header: start resize if near right edge
+      const rect=th.getBoundingClientRect();
+      if(e.clientX>rect.right-6){
+        e.preventDefault();
+        colResize={col:+th.dataset.col,startX:e.clientX,startW:th.offsetWidth};
+        return;
+      }
+    }
+    if(!td) return;
+    if(e.detail===2){ openEditor(+td.dataset.r,+td.dataset.c,null); return; }
+    const r=+td.dataset.r, c=+td.dataset.c;
+    if(e.shiftKey) setSelection(r,c,true);
+    else setSelection(r,c,false);
+  });
+  document.addEventListener("mousemove",(e)=>{
+    if(!colResize) return;
+    const w=clamp(colResize.startW+(e.clientX-colResize.startX),40,600);
+    activeSheet().colWidths[colResize.col]=Math.round(w);
+    renderGrid();
+  });
+  document.addEventListener("mouseup",()=>{
+    if(colResize){ colResize=null; scheduleSave(); }
+  });
+  table.addEventListener("dblclick",(e)=>{
+    const td=e.target.closest("td");
+    if(td) openEditor(+td.dataset.r,+td.dataset.c,null);
+  });
+  const ed=$("#cellEditor");
+  ed.addEventListener("keydown",(e)=>{
+    if(e.key==="Enter"){ e.preventDefault(); const v=ed.value; closeEditor(true); moveSelection(e.shiftKey?-1:1,0,false); }
+    else if(e.key==="Tab"){ e.preventDefault(); closeEditor(true); moveSelection(0,e.shiftKey?-1:1,false); }
+    else if(e.key==="Escape"){ e.preventDefault(); closeEditor(false); }
+    else if(e.key==="ArrowDown"||e.key==="ArrowUp"){ /* let the editor keep the caret */ }
+    e.stopPropagation();
+  });
+  ed.addEventListener("blur",()=>{ if(editing) closeEditor(true); });
+  wrap.addEventListener("scroll",()=>{ if(editing) closeEditor(true); },true);
+  // paste into grid
+  document.addEventListener("paste",(e)=>{
+    if(editing) return;
+    const tag=(document.activeElement&&document.activeElement.tagName)||"";
+    if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT") return;
+    const text=(e.clipboardData||window.clipboardData)&&e.clipboardData.getData("text");
+    if(!text) return;
+    e.preventDefault();
+    pasteTsv(text,sel.r,sel.c);
+  });
+  // formula bar
+  const fi=$("#formulaInput");
+  fi.addEventListener("focus",()=>{ if(!editing) openEditor(sel.r,sel.c,null); });
+  fi.addEventListener("keydown",(e)=>{
+    if(e.key==="Enter"){ e.preventDefault(); const v=fi.value; closeEditor(false); commitEdit(v); moveSelection(1,0,false); }
+    else if(e.key==="Escape"){ e.preventDefault(); updateFormulaBar(); fi.blur(); }
+    e.stopPropagation();
+  });
+  fi.addEventListener("input",()=>{
+    if(editing){ const ed2=$("#cellEditor"); if(ed2) ed2.value=fi.value; }
+  });
+}
+function wireKeyboard(){
+  document.addEventListener("keydown",(e)=>{
+    const tag=(document.activeElement&&document.activeElement.tagName)||"";
+    const inField=tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT";
+    if(editing) return; // editor handles its own keys
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&!e.shiftKey){ e.preventDefault(); doUndo(); return; }
+    if((e.ctrlKey||e.metaKey)&&(e.key.toLowerCase()==="y"||(e.key.toLowerCase()==="z"&&e.shiftKey))){ e.preventDefault(); doRedo(); return; }
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="c"){ copySelection(); return; }
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="f"){ e.preventDefault(); showFind(); return; }
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){ e.preventDefault(); saveNow(); toast("Saved."); return; }
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="b"){ e.preventDefault(); const cell=getCell(activeSheet(),sel.r,sel.c); applyStyleToSelection({b:!(cell&&cell.s&&cell.s.b)}); return; }
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="i"){ e.preventDefault(); const cell=getCell(activeSheet(),sel.r,sel.c); applyStyleToSelection({i:!(cell&&cell.s&&cell.s.i)}); return; }
+    if(inField) return;
+    if(e.key==="Enter"){ e.preventDefault(); openEditor(sel.r,sel.c,null); return; }
+    if(e.key==="F2"){ e.preventDefault(); openEditor(sel.r,sel.c,null); return; }
+    if(e.key==="Delete"||e.key==="Backspace"){
+      e.preventDefault();
+      const sh=activeSheet(); pushUndo();
+      for(let r=Math.min(sel.r1,sel.r2);r<=Math.max(sel.r1,sel.r2);r++)
+        for(let c=Math.min(sel.c1,sel.c2);c<=Math.max(sel.c1,sel.c2);c++) delete sh.cells[cellKey(r,c)];
+      recomputeSheet(sh); renderGrid(); renderCards(); scheduleSave();
+      return;
+    }
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"||e.key==="ArrowLeft"||e.key==="ArrowRight"){
+      e.preventDefault();
+      const d={ArrowDown:[1,0],ArrowUp:[-1,0],ArrowRight:[0,1],ArrowLeft:[0,-1]}[e.key];
+      moveSelection(d[0],d[1],e.shiftKey);
+      return;
+    }
+    if(e.key==="Tab"){ e.preventDefault(); moveSelection(0,e.shiftKey?-1:1,false); return; }
+    if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+      e.preventDefault();
+      openEditor(sel.r,sel.c,e.key);
+      return;
+    }
+  });
+}
+function wireToolbar(){
+  $("#undoBtn").onclick=doUndo;
+  $("#redoBtn").onclick=doRedo;
+  $("#boldBtn").onclick=()=>{
+    const cell=getCell(activeSheet(),sel.r,sel.c);
+    const cur=cell&&cell.s&&cell.s.b;
+    applyStyleToSelection({b:!cur});
+  };
+  $("#italicBtn").onclick=()=>{
+    const cell=getCell(activeSheet(),sel.r,sel.c);
+    const cur=cell&&cell.s&&cell.s.i;
+    applyStyleToSelection({i:!cur});
+  };
+  $("#fillColor").oninput=(e)=>applyStyleToSelection({fill:e.target.value});
+  $("#textColor").oninput=(e)=>applyStyleToSelection({color:e.target.value});
+  $("#numFmt").onchange=(e)=>{ if(e.target.value) applyStyleToSelection({fmt:e.target.value}); };
+  $("#borderSel").onchange=(e)=>{
+    const v=e.target.value; if(!v) return;
+    const sh=activeSheet();
+    const r1=Math.min(sel.r1,sel.r2), r2=Math.max(sel.r1,sel.r2);
+    const c1=Math.min(sel.c1,sel.c2), c2=Math.max(sel.c1,sel.c2);
+    pushUndo();
+    for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){
+      const edge = v==="all" || r===r1||r===r2||c===c1||c===c2;
+      if(!edge) continue;
+      const k=cellKey(r,c);
+      if(!sh.cells[k]) sh.cells[k]={v:"",f:null,s:{}};
+      if(!sh.cells[k].s) sh.cells[k].s={};
+      sh.cells[k].s.border="thin";
+    }
+    renderGrid(); scheduleSave();
+    e.target.value="";
+  };
+  $("#mergeBtn").onclick=mergeSelection;
+  $("#unmergeBtn").onclick=unmergeSelection;
+  $("#insRowBtn").onclick=()=>{ insertRow(sel.r); toast("Row inserted above row "+(sel.r+1)+"."); };
+  $("#delRowBtn").onclick=()=>{ deleteRows(Math.min(sel.r1,sel.r2),Math.max(sel.r1,sel.r2)); toast("Row(s) deleted."); };
+  $("#insColBtn").onclick=()=>{ insertCol(sel.c); toast("Column inserted left of "+colToLetter(sel.c)+"."); };
+  $("#delColBtn").onclick=()=>{ deleteCols(Math.min(sel.c1,sel.c2),Math.max(sel.c1,sel.c2)); toast("Column(s) deleted."); };
+  $("#sortAscBtn").onclick=()=>sortSelection("asc");
+  $("#sortDescBtn").onclick=()=>sortSelection("desc");
+  $("#filterBtn").onclick=showFilter;
+  $("#clearFilterBtn").onclick=clearFilters;
+  $("#findBtn").onclick=showFind;
+  $("#clearBtn").onclick=()=>{
+    const sh=activeSheet(); pushUndo();
+    for(let r=Math.min(sel.r1,sel.r2);r<=Math.max(sel.r1,sel.r2);r++)
+      for(let c=Math.min(sel.c1,sel.c2);c<=Math.max(sel.c1,sel.c2);c++) delete sh.cells[cellKey(r,c)];
+    recomputeSheet(sh); renderGrid(); renderCards(); scheduleSave();
+  };
+  $("#addSheetBtn").onclick=()=>addSheet();
+  $("#gridViewBtn").onclick=()=>setView("grid");
+  $("#cardsViewBtn").onclick=()=>setView("cards");
+  $("#helpBtn").onclick=showHelp;
+  $("#wbName").addEventListener("change",(e)=>{
+    state.name=e.target.value.trim()||"Untitled workbook";
+    e.target.value=state.name; scheduleSave();
+  });
+  $("#modalOverlay").addEventListener("click",(e)=>{ if(e.target.id==="modalOverlay") closeModal(); });
+  document.addEventListener("keydown",(e)=>{ if(e.key==="Escape"&&$("#modalOverlay").classList.contains("on")) closeModal(); });
+  $("#fileInput").addEventListener("change",(e)=>{ if(e.target.files&&e.target.files[0]) handleFilePicked(e.target.files[0]); });
+}
+function setView(mode){
+  viewMode=mode;
+  $("#gridViewBtn").classList.toggle("active",mode==="grid");
+  $("#cardsViewBtn").classList.toggle("active",mode==="cards");
+  $("#gridWrap").style.display=mode==="grid"?"":"none";
+  renderCards();
+  if(mode==="grid") renderGrid();
+}
+
+/* ---------------- init ---------------- */
+async function init(){
+  wireFileMenu(); wireGrid(); wireKeyboard(); wireToolbar();
+  const saved=await loadSaved();
+  if(saved){
+    state=normaliseWorkbook(saved);
+    state.sheets.forEach(recomputeSheet);
+  } else {
+    state=newWorkbook();
+    recomputeAll();
+  }
+  setSaveState(storeMode==="indexedDB"?"Saved":"Saved (limited storage)", storeMode!=="indexedDB");
+  renderAll();
+}
+/* Test hooks: stable API for jsdom tests (not part of the UI). */
+window.__sheets={
+  get state(){ return state; },
+  set state(v){ state=v; },
+  get sel(){ return sel; },
+  newWorkbook:newWorkbook, newSheet:newSheet,
+  setCellRaw:setCellRaw, getCell:getCell, displayValue:displayValue,
+  evaluateFormula:evaluateFormula, recomputeAll:recomputeAll, recomputeSheet:recomputeSheet,
+  parseFormula:parseFormula, tokenizeFormula:tokenizeFormula,
+  importXlsxBytes:importXlsxBytes, buildXlsxBytes:buildXlsxBytes,
+  exportCsvText:exportCsvText, importRowsIntoSheet:importRowsIntoSheet,
+  exportWeaveText:exportWeaveText, importWeaveText:importWeaveText,
+  sortSelection:sortSelection, switchSheet:switchSheet, addSheet:addSheet,
+  setSelection:setSelection, commitEdit:commitEdit, selectionTsv:selectionTsv,
+  applyFilter:applyFilter, clearFilters:clearFilters,
+  mergeSelection:mergeSelection, unmergeSelection:unmergeSelection,
+  findNext:findNext, doUndo:doUndo, doRedo:doRedo, renameSheet:renameSheet, deleteSheet:deleteSheet,
+  renderAll:renderAll, parseCsv:parseCsv, readZip:readZip, writeZip:writeZip,
+  colToLetter:colToLetter, letterToCol:letterToCol, parseRef:parseRef, a1:a1,
+  dateToSerial:dateToSerial, serialToDate:serialToDate,
+  downloadBytes:downloadBytes, downloadText:downloadText,
+  openFilePicker:openFilePicker, importViaTauri:importViaTauri, applyImport:applyImport
+};
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",init);
+else init();
+</script>
+</body>
+</html>
